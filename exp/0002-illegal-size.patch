@@ -1,0 +1,36 @@
+From 0b68bf8975fa0d20d9fa3a2928e10cc4be14c575 Mon Sep 17 00:00:00 2001
+From: 0xddaa <0xddaa@gmail.com>
+Date: Fri, 6 Apr 2018 16:08:11 +0800
+Subject: [PATCH 2/2] illegal size
+
+---
+ mkfs-simplefs.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/mkfs-simplefs.c b/mkfs-simplefs.c
+index 1ceb677..cecd2d5 100644
+--- a/mkfs-simplefs.c
++++ b/mkfs-simplefs.c
+@@ -143,8 +143,8 @@ int write_block(int fd, char *block, size_t len)
+ {
+ 	ssize_t ret;
+ 
+-	ret = write(fd, block, len);
+-	if (ret != len) {
++	ret = write(fd, block, strlen(block));
++	if (ret != strlen(block)) {
+ 		printf("Writing file body has failed\n");
+ 		return -1;
+ 	}
+@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
+ 		.mode = S_IFREG,
+ 		.inode_no = WELCOMEFILE_INODE_NUMBER,
+ 		.data_block_number = WELCOMEFILE_DATABLOCK_NUMBER,
+-		.file_size = sizeof(welcomefile_body),
++		.file_size = 0xfffffffff,
+ 	};
+ 	struct simplefs_dir_record record = {
+ 		.filename = "vanakkam",
+-- 
+2.7.4
+

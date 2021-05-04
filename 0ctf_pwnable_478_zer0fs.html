@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html lang="zh-tw" class="no-js lt-ie9 lt-ie8 lt-ie7" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 7]>         <html lang="zh-tw" class="no-js lt-ie9 lt-ie8" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 8]>         <html lang="zh-tw" class="no-js lt-ie9" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if gt IE 8]><!--> <html lang="zh-tw" class="no-js" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <!--<![endif]-->
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>0CTF 2018 Pwnable 478 Zer0 FS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="The problem was solved with jeffxx, atdog and lays Most of exploit was written by atdog during the competition and I rewrote the exploit for the write-up. Analysis We will enter a shell that building by KVM after ssh connection enbalished. The discription said the flag is sha256(/root/flag …">
+<link rel="shortcut icon" href="./images/favicon.ico" type="">
+<meta name="author" content="ddaa">
+<meta name="copyright" content="ddaa">
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:site" content="@" />
+<meta property="og:site_name" content="ddaa's blog" />
+
+<meta property="og:title" content="0ctf 2018 pwnable 478 zer0 fs" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="./0ctf_pwnable_478_zer0fs.html" />
+<meta name="twitter:title" content="0ctf 2018 pwnable 478 zer0 fs" />
+<meta name="twitter:url" content="./0ctf_pwnable_478_zer0fs.html" />
+<meta itemprop="url" content="./0ctf_pwnable_478_zer0fs.html" />
+<meta property="og:description" content="The problem was solved with jeffxx, atdog and lays Most of exploit was written by atdog during the competition and I rewrote the exploit for the write-up. Analysis We will enter a shell that building by KVM after ssh connection enbalished. The discription said the flag is sha256(/root/flag …" />
+<meta name="twitter:description" content="The problem was solved with jeffxx, atdog and lays Most of exploit was written by atdog during the competition and I rewrote the exploit for the write-up. Analysis We will enter a shell that building by KVM after ssh connection enbalished. The discription said the flag is sha256(/root/flag …" />
+<meta property="og:article:published_time" content="2018-04-06" />
+<meta property="og:article:author" content="ddaa" >
+<meta property="og:article:tag" content="0CTF">
+<meta property="og:article:tag" content="Linux kernel">
+<meta property="og:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta property="og:image:type" content="" />
+<meta name="twitter:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta itemprop="image" content="https://ddaa.tw/images/avatar.jpg" />
+
+<link href="./feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="ddaa's blog ATOM Feed"/>
+<link href='//fonts.googleapis.com/css?family=Open+Sans:800italic' rel='stylesheet' type='text/css'>
+<link href='//fonts.googleapis.com/css?family=Oswald' rel='stylesheet' type='text/css'>
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/uikit.min.css">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/components/search.min.css">
+<link rel="stylesheet" href="/theme/css/tipuesearch.css">
+<link rel="stylesheet" href="/theme/css/solarized.css">
+<link rel="stylesheet" href="/theme/css/main.css">
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.2/html5shiv.min.js"></script>
+</head>
+<body>
+<!--[if lt IE 7]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+
+<header class=" mg-header uk-navbar uk-navbar-attached">
+
+    <div class="uk-container uk-container-center">
+        <div class="uk-grid" data-uk-grid-margin>
+
+            <a class="mg-brand uk-navbar-brand uk-hidden-small" href="."><i class="uk-icon-flag"></i> ddaa's blog</a>
+            <div class="mg-tagline uk-navbar-content uk-hidden-small">Write-ups for CTF.</div>
+            <a class="uk-navbar-toggle uk-visible-small" href="#mg-offcanvas" data-uk-offcanvas></a>
+            <a class="mg-brand uk-navbar-brand uk-navbar-center uk-visible-small" href=".">ddaa's blog</a>
+
+        </div>
+    </div>
+</header>
+
+<main class="mg-main">
+
+<div class="uk-container uk-container-center">
+
+    <div class="uk-grid" data-uk-grid-margin>
+        
+<div class="mg-container-social uk-width-medium-1-10 uk-hidden-small">
+
+    <div class="uk-panel" id="mg-panel-social">
+        <ul class="uk-nav uk-nav-side">
+            <li>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/0ctf_pwnable_478_zer0fs.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button"><i class="uk-icon-facebook-square"></i> Share</a>
+            </li>
+            <li>
+            <a href="https://twitter.com/intent/tweet?text=0CTF%202018%20Pwnable%20478%20Zer0%20FS&url=https://ddaa.tw/0ctf_pwnable_478_zer0fs.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+            </li>
+            <li>
+            <a href="https://plus.google.com/share?url=https://ddaa.tw/0ctf_pwnable_478_zer0fs.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button"><i class="uk-icon-google-plus-square"></i> Share</a>
+            </li>
+        </ul>
+    </div>
+
+</div>
+
+<div class="uk-width-medium-7-10">
+
+    <article class="uk-article">
+        <h1 class="uk-heading-large uk-article-title" itemprop="name">0CTF 2018 Pwnable 478 Zer0 FS</h1>
+        <p class="uk-article-meta"><time datetime="2018-04-06" itemprop="datePublished">Fri, 06 April 2018</time> in <a href="./category/pwn.html">pwn</a>, <br class="uk-visible-small"><i class="uk-icon-comment"></i> <a href="./0ctf_pwnable_478_zer0fs.html#disqus_thread" itemprop="discussionUrl"></a></p>
+<p class="uk-tag"><i class="uk-icon-tags"></i> <a href="./tag/0ctf.html">0CTF</a> , <a href="./tag/linux-kernel.html">Linux kernel</a> </p>
+        <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/0ctf_pwnable_478_zer0fs.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button uk-visible-small"><i class="uk-icon-facebook-square"></i> Share</a>
+        <a href="https://twitter.com/intent/tweet?text=0CTF%202018%20Pwnable%20478%20Zer0%20FS&url=https://ddaa.tw/0ctf_pwnable_478_zer0fs.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button uk-visible-small" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+        <a href="https://plus.google.com/share?url=https://ddaa.tw/0ctf_pwnable_478_zer0fs.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button uk-visible-small"><i class="uk-icon-google-plus-square"></i> Share</a>
+
+        <section itemprop="articleBody"><p>The problem was solved with <strong>jeffxx</strong>, <strong>atdog</strong> and <strong>lays</strong><br>
+Most of exploit was written by <strong>atdog</strong> during the competition and I rewrote the exploit for the write-up.  </p>
+<hr>
+<h2>Analysis</h2>
+<p>We will enter a shell that building by KVM after ssh connection enbalished. The discription said the flag is <code>sha256(/root/flag)</code>, but we had no permisson to read it. As other Linux kernel challenge, our target is obtaining the root priviledge, then we can calculate the hash of <code>/root/flag</code>.<br>
+There are two setuid programs under the root directory. One of them is <code>/mount</code>. Try to execute <code>/mount</code> but the error message is as below:</p>
+<blockquote>
+<p>mount: mounting /tmp/zerofs.img on /mnt failed: No such file or directory</p>
+</blockquote>
+<p>After created <code>/tmp/zerofs.img</code>, we got another error message:</p>
+<blockquote>
+<p>mount: mounting /dev/loop0 on /mnt failed: Device or resource busy</p>
+</blockquote>
+<p>Well, maybe we should make a normal image at first. Aside from creating image, let's see what files the challenge gave.</p>
+<div class="highlight"><pre><span></span>-rw-r--r-- yoghur7/yoghur7 7173904 2018-03-29 03:42 public/bzImage
+-rw-rw-r-- yoghur7/yoghur7 3229184 2018-03-30 01:13 public/rootfs.cpio
+-rw-r--r-- yoghur7/yoghur7  326664 2018-03-29 03:42 public/zerofs.ko
+-rwxrwxr-x yoghur7/yoghur7     240 2018-03-29 03:42 public/run.sh
+</pre></div>
+
+
+<p><code>run.sh</code> is a shellscript to start the challege environment by kvm (or qemu). Notice, the arguments include <code>-initrd</code>. It means the rootfs is made by ramdisk and files will be stored in memory. I used the feature for exploit this challenge.  </p>
+<p>Obviously, we should analysis <code>zerofs.ko</code> at first. <strong>jeffxx</strong> found a repository called <a href="https://github.com/psankar/simplefs">simplefs</a> which is very similar with zerofs.ko, but a little difference still exists, such as the inode structure and super block. We made a little <a href="./exp/0001-make-zerofs-image.patch">modification</a> after reversing <code>zerofs.ko</code> and we could make a legal image thourgh <code>mkfs-simplefs</code>. By the way, I didn't attend the reverse stage ... I was stucking in <strong>Might dragon</strong> at that time. Orz  </p>
+<h2>Vulnerability</h2>
+<ol>
+<li><code>zerofs_write</code>: There was a buffer overflow when using <code>copy_from_user</code> but it didn't check the boundary. This vulnerabiliy wouldn't be use in my exploit.</li>
+<li><code>zerofs_read</code>: It checked that the length must be smaller than file size. However, because we could control the full file system, we could make an illegal file which file size is not equal to the real size (see <a href="./exp/0002-illegal-size.patch">patch2</a>). After that, it will leak extra data in kernel memory when reading the file.</li>
+<li><code>zerofs_lleek</code>: Exist the same problem that mention in <code>zerofs_read</code>. We could call <code>lseek</code> to control the position of the file.</li>
+</ol>
+<p>We could combine <code>llseek</code> with <code>zerofs_read</code> to leak the data more easier or <code>zerofs_write</code> to avoid breaking some important sturcture.  </p>
+<h2>Exploit</h2>
+<p>Our target is getting the root priviledge and reading <code>/root/flag</code>. As above mentioned, the rootfs was on kernel memory, so we could modify the file throught arbitrary write in <code>zerofs_write</code>. I also noticed that both <code>/mount</code> and <code>/umount</code> are setuid programs. We could replace a part of file content to our shellcode. I think it is the easiest way to reach our target.  </p>
+<p>Now, we almost had an arbitrary read or write on kernel memory, but we could not confirm the offset because the randomization of kernel heap mechanism. Thus, we must to identify the distance between the overflowed buffer and the rootfs.  </p>
+<p>I disabled KASLR and use gdb to watch the kernel memory. It looks like below:</p>
+<div class="highlight"><pre><span></span>pwndbg&gt; vmmap
+LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA
+    0x7ffe4e844000     0x7ffe4e847000 rwxp     3000 0          &lt;=== user space program
+0xffff880002dbd000 0xffff8800035bd000 rwxp   800000 0          &lt;=== overflowed buffer
+0xffff880003614000 0xffff880003e14000 rwxp   800000 0          &lt;=== rootfs
+0xffffc900001c2000 0xffffffff82203000 rwxp 36ff82041000 0      [stack]
+0xffffffff8143a000 0xffffffff81c3a000 rwxp   800000 0
+0xffffffffbffff000 0xffffffffc0004000 rwxp     5000 0
+</pre></div>
+
+
+<p>I noticed that the offset of rootfs is fixed, but the offset of overflowed buffer would change. I'm not sure the reason, maybe it was generated dynamicly by <code>__bread_gfp</code>? Despite sometime it would be the same, I wanted to make a stable exploit because it was annoying to upload file to the remote environment.  </p>
+<p>We could write a program that keeps adjust the position by <code>lseek</code> and leaking memory by <code>read</code>, then checking if the leaked data contains the specified pattern. I chose a string <strong>/bin/mount</strong> to be the pattern because it occurs in rootfs once and it is used by <code>/mount</code>. After finding the pattern, we could add or minus the offset to modify any file on rootfs. The proof-of-concept is as below:</p>
+<div class="highlight"><pre><span></span>for (int i = start; i &lt; end; i++) {
+    lseek(fd, i * 0x1000, SEEK_SET);
+    read(fd, buf, 0x1000);
+    if (search(buf, PATTERN)) {
+        printf(&quot;offset = %d\n&quot;, i);
+        off = i * 0x1000  - 0x94000 + 0x1081;
+        break;
+    }
+}
+</pre></div>
+
+
+<p>Finally, adjust the file position to the calculated offsetand and write a shellcode to execute <code>/bin/sh</code>. After that, execute <code>/mount</code> again. We could get a shell with the root priviledge. :)</p>
+<h2>Note</h2>
+<p>There are some detail about making the exploit.</p>
+<ol>
+<li>For local testing, I wrote a script to repack rootfs into a cpio file. The image and exploit will in the file system after rebooting.</li>
+<li>Adding <code>-s</code> into the arguments when starting qemu and using gdb remote attach to debug my exploit.</li>
+<li>Modify <code>/init</code> to initialize something, such as mount /tmp/zerofs.img and set priviledge to root.</li>
+<li>The environment linked most of binary to busybox. Thus, I uploaded the image and exploit by copy-paste base64 string and decode them back to the binary. Is there a better way?</li>
+<li>I needed to keep the size of exploit small because using copy-paste to upload, but there is no glibc in the environment. Thus, I compiled my exploit with <a href="https://www.fefe.de/dietlibc/">dietlibc</a>.</li>
+<li>As our expectation, we could not find the pattern like <code>flag{</code> directly, because <code>/root/flag</code> is a pure binary file.</li>
+</ol>
+<p>flag: <code>flag{600291f9a05a1e78215aa48c9ff6a4b1bb207c2b4ffa66223fcc67c04281397f}</code>  </p>
+<p>exploit: <a href="./exp/zerofs.c">exp.c</a>  </p></section>
+        <hr class="uk-article-divider">
+    </article>
+
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+     var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+     dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+     (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+     })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+    <a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+</div>
+ 
+    
+        <div class="uk-width-medium-1-5 uk-hidden-small">
+            
+<!--
+            <div class="uk-panel uk-panel-box">
+                <form class="uk-search" action="search.html" data-uk-search>
+                    <input class="uk-search-field tipue_search" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+                </form>
+            </div>
+-->
+            <div class="uk-panel">
+                <div class="uk-button-dropdown" data-uk-dropdown>
+                    <button class="uk-button uk-button-danger"><i class="uk-icon-tags"></i>&nbsp;Tags</button>
+                    <div class="uk-dropdown">
+                        <ul class="uk-nav uk-nav-dropdown">
+                            <li class="uk-nav-header">CTF</li>
+                            <li><a href="./tag/0ctf.html">0CTF</a></li>
+                            <li><a href="./tag/3xc3ctf.html">3XC3CTF</a></li>
+                            <li><a href="./tag/bkpctf.html">BKPCTF</a></li>
+                            <li><a href="./tag/codegate-ctf.html">Codegate CTF</a></li>
+                            <li><a href="./tag/csawctf.html">CSAWCTF</a></li>
+                            <li><a href="./tag/def-con-ctf.html">DEF CON CTF</a></li>
+                            <li><a href="./tag/google-ctf.html">Google CTF</a></li>
+                            <li><a href="./tag/hitcon-ctf.html">HITCON CTF</a></li>
+                            <li><a href="./tag/other-ctf.html">Other CTF</a></li>
+                            <li><a href="./tag/plaidctf.html">PlaidCTF</a></li>
+                            <li><a href="./tag/seccon-ctf.html">SECCON CTF</a></li>
+                            <li><a href="./tag/xctf.html">XCTF</a></li>
+                            <li class="uk-nav-header">skill</li>
+                            <li><a href="./tag/armv8.html">ARMv8</a></li>
+                            <li><a href="./tag/bash.html">Bash</a></li>
+                            <li><a href="./tag/cmd-injection.html">CMD Injection</a></li>
+                            <li><a href="./tag/collision.html">Collision</a></li>
+                            <li><a href="./tag/crlf.html">CRLF</a></li>
+                            <li><a href="./tag/cve.html">CVE</a></li>
+                            <li><a href="./tag/dl_resolve.html">dl_resolve</a></li>
+                            <li><a href="./tag/engima.html">Engima</a></li>
+                            <li><a href="./tag/feistel-cipher.html">Feistel Cipher</a></li>
+                            <li><a href="./tag/format-string.html">Format String</a></li>
+                            <li><a href="./tag/frequency-analysis.html">Frequency Analysis</a></li>
+                            <li><a href="./tag/heap-overflow.html">Heap Overflow</a></li>
+                            <li><a href="./tag/jailbreak.html">Jailbreak</a></li>
+                            <li><a href="./tag/length-extension-attack.html">Length Extension Attack</a></li>
+                            <li><a href="./tag/lfi.html">LFI</a></li>
+                            <li><a href="./tag/linux-kernel.html">Linux kernel</a></li>
+                            <li><a href="./tag/mitm.html">MITM</a></li>
+                            <li><a href="./tag/off-by-one.html">Off-by-one</a></li>
+                            <li><a href="./tag/out-of-bound.html">Out-of-bound</a></li>
+                            <li><a href="./tag/pkcs1-v15.html">PKCS#1 v1.5</a></li>
+                            <li><a href="./tag/prng.html">PRNG</a></li>
+                            <li><a href="./tag/race-condition.html">Race Condition</a></li>
+                            <li><a href="./tag/rsa.html">RSA</a></li>
+                            <li><a href="./tag/shellcode.html">Shellcode</a></li>
+                            <li><a href="./tag/sql-injection.html">SQL Injection</a></li>
+                            <li><a href="./tag/stack-overflow.html">Stack Overflow</a></li>
+                            <li><a href="./tag/substitution-cipher.html">Substitution Cipher</a></li>
+                            <li><a href="./tag/trick.html">Trick</a></li>
+                            <li><a href="./tag/uninitialized.html">Uninitialized</a></li>
+                            <li><a href="./tag/vm-executable.html">VM Executable</a></li>
+                            <li><a href="./tag/wireshark.html">Wireshark</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="uk-panel uk-panel-box">
+                <ul class="uk-nav uk-nav-side">
+                    <li class="uk-nav-header">Categories</li>
+                    <li ><a href="./category/crypto.html">crypto</a></li>
+                    <li ><a href="./category/forensic.html">forensic</a></li>
+                    <li ><a href="./category/misc.html">misc</a></li>
+                    <li ><a href="./category/other.html">other</a></li>
+                    <li class="uk-active"><a href="./category/pwn.html">pwn</a></li>
+                    <li ><a href="./category/reverse.html">reverse</a></li>
+                    <li ><a href="./category/web.html">web</a></li>
+
+                    <li class="uk-nav-header">Pages</li>
+                    
+                    
+
+                    <li class="uk-nav-divider"></li>
+                    <li ><a href="./archives.html">Archives</a></li>
+                </ul>
+            </div>
+
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Receive Updates</h3>
+                <a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="mg-feed"><i class="uk-icon-rss uk-icon-medium"></i> ATOM</a>
+            </div>
+            
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Contacts</h3>
+                <a class="mg-icon-link" href="http://www.facebook.com/0xddaa">
+                    <i class="uk-icon-facebook-square uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://github.com/0xddaa">
+                    <i class="uk-icon-github uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://twitter.com/0xddaa">
+                    <i class="uk-icon-twitter uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="mailto:0xddaa@gmail.com">
+                    <i class="uk-icon-envelope-o uk-icon-medium"></i>
+                </a>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</main>
+
+<footer class="mg-footer">
+    <div class="uk-container uk-container-center uk-text-center">
+
+        <div class="mg-icons-small uk-subnav uk-visible-small">
+            <li><a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="uk-icon-button uk-icon-rss"></a></li>
+            <li>
+                <a href="http://www.facebook.com/0xddaa" class="uk-icon-button uk-icon-facebook"></a>
+            </li>
+            <li>
+                <a href="https://github.com/0xddaa" class="uk-icon-button uk-icon-github"></a>
+            </li>
+            <li>
+                <a href="https://twitter.com/0xddaa" class="uk-icon-button uk-icon-twitter"></a>
+            </li>
+            <li>
+                <a href="mailto:0xddaa@gmail.com" class="uk-icon-button uk-icon-envelope-o"></a>
+            </li>
+        </div>
+
+        <div class="mg-author uk-panel">
+            <p>&copy; 2021 <a href="mailto:0xddaa@gmail.com">ddaa</a>. All rights reserved.<br></p>
+
+            <p>Powered by <a href="http://blog.getpelican.com">Pelican</a>.<br class="uk-visible-small"> Theme <a href="https://github.com/lucachr/pelican-mg">mg</a> by <a href="https://github.com/lucachr">Luca Chiricozzi</a>.</p>
+        </div>
+    </div> 
+</footer>
+
+<div id="mg-offcanvas" class="uk-offcanvas">
+    <div class="uk-offcanvas-bar">
+
+        <!--
+        <form class="uk-search" action="search.html" data-uk-search>
+            <input class="uk-search-field" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+        </form>
+        -->
+
+        <ul class="uk-nav uk-nav-offcanvas" data-uk-nav>
+            <li class="uk-nav-header">Categories</li>
+            <li ><a href="./category/crypto.html">crypto</a></li>
+            <li ><a href="./category/forensic.html">forensic</a></li>
+            <li ><a href="./category/misc.html">misc</a></li>
+            <li ><a href="./category/other.html">other</a></li>
+            <li class="uk-active"><a href="./category/pwn.html">pwn</a></li>
+            <li ><a href="./category/reverse.html">reverse</a></li>
+            <li ><a href="./category/web.html">web</a></li>
+            <li class="uk-nav-header">Pages</li>        
+                    
+
+            <li class="uk-nav-divider"></li>
+            <li><a href="./">Archives</a></li>
+        </ul>
+    </div>
+</div>
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script>window.jQuery || document.write('<script src="js/vendor/jquery-1.10.2.min.js"><\/script>')</script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/uikit.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/components/search.min.js"></script>
+<script src="/theme/js/jquery.sticky-kit.js"></script>
+<script src="/theme/js/tipuesearch_set.js"></script>
+<script src="/theme/js/tipuesearch.js"></script>
+<script src="/theme/js/plugins.js"></script>
+<script src="/theme/js/main.js"></script>
+
+<script type="text/javascript">
+/* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+/* * * DON'T EDIT BELOW THIS LINE * * */
+(function () {
+ var s = document.createElement('script'); s.async = true;
+ s.type = 'text/javascript';
+ s.src = '//' + disqus_shortname + '.disqus.com/count.js';
+ (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+ }());
+</script>
+
+
+</body>
+</html>

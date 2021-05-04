@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html lang="zh-tw" class="no-js lt-ie9 lt-ie8 lt-ie7" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 7]>         <html lang="zh-tw" class="no-js lt-ie9 lt-ie8" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 8]>         <html lang="zh-tw" class="no-js lt-ie9" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if gt IE 8]><!--> <html lang="zh-tw" class="no-js" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <!--<![endif]-->
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>honeyme 2015 CTF CVE-2015-3306</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="這次比賽前一天好像吃壞肚子... 結果隔天遲到 將近 12 點才到會場 很擔心會不會到現場題目已經被 Orange 解光了 (誤 還好還是有解貢獻一點分數 XD honeyme 是採 King of the Hill 的賽制 參賽隊伍要想辦法把主機首頁給換掉 寫進自己的 token 就可以有源源不絕的分數了~ 其中 ip .194 這台主辦方出的漏洞是利用 CVE-2015-3306 一個 Proftpd 的邏輯漏洞 在 Proftpd 啟用 mod_copy 模組的請況下 允許攻擊者在尚未認證的情況下任意對檔案進行讀寫 可以用以下的程式碼驗證 ftp server 是否存在漏洞: 220 ProFTPD 1.3.4a Server (ProFTPD Default Installation) [127 …">
+<link rel="shortcut icon" href="./images/favicon.ico" type="">
+<meta name="author" content="ddaa">
+<meta name="copyright" content="ddaa">
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:site" content="@" />
+<meta property="og:site_name" content="ddaa's blog" />
+
+<meta property="og:title" content="Honeyme 2015 ctf cve-2015-3306" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="./honeyme_pwn_cve_2015_3306.html" />
+<meta name="twitter:title" content="Honeyme 2015 ctf cve-2015-3306" />
+<meta name="twitter:url" content="./honeyme_pwn_cve_2015_3306.html" />
+<meta itemprop="url" content="./honeyme_pwn_cve_2015_3306.html" />
+<meta property="og:description" content="這次比賽前一天好像吃壞肚子... 結果隔天遲到 將近 12 點才到會場 很擔心會不會到現場題目已經被 Orange 解光了 (誤 還好還是有解貢獻一點分數 XD honeyme 是採 King of the Hill 的賽制 參賽隊伍要想辦法把主機首頁給換掉 寫進自己的 token 就可以有源源不絕的分數了~ 其中 ip .194 這台主辦方出的漏洞是利用 CVE-2015-3306 一個 Proftpd 的邏輯漏洞 在 Proftpd 啟用 mod_copy 模組的請況下 允許攻擊者在尚未認證的情況下任意對檔案進行讀寫 可以用以下的程式碼驗證 ftp server 是否存在漏洞: 220 ProFTPD 1.3.4a Server (ProFTPD Default Installation) [127 …" />
+<meta name="twitter:description" content="這次比賽前一天好像吃壞肚子... 結果隔天遲到 將近 12 點才到會場 很擔心會不會到現場題目已經被 Orange 解光了 (誤 還好還是有解貢獻一點分數 XD honeyme 是採 King of the Hill 的賽制 參賽隊伍要想辦法把主機首頁給換掉 寫進自己的 token 就可以有源源不絕的分數了~ 其中 ip .194 這台主辦方出的漏洞是利用 CVE-2015-3306 一個 Proftpd 的邏輯漏洞 在 Proftpd 啟用 mod_copy 模組的請況下 允許攻擊者在尚未認證的情況下任意對檔案進行讀寫 可以用以下的程式碼驗證 ftp server 是否存在漏洞: 220 ProFTPD 1.3.4a Server (ProFTPD Default Installation) [127 …" />
+<meta property="og:article:published_time" content="2015-08-22" />
+<meta property="og:article:author" content="ddaa" >
+<meta property="og:article:tag" content="Other CTF">
+<meta property="og:article:tag" content="CVE">
+<meta property="og:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta property="og:image:type" content="" />
+<meta name="twitter:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta itemprop="image" content="https://ddaa.tw/images/avatar.jpg" />
+
+<link href="./feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="ddaa's blog ATOM Feed"/>
+<link href='//fonts.googleapis.com/css?family=Open+Sans:800italic' rel='stylesheet' type='text/css'>
+<link href='//fonts.googleapis.com/css?family=Oswald' rel='stylesheet' type='text/css'>
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/uikit.min.css">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/components/search.min.css">
+<link rel="stylesheet" href="/theme/css/tipuesearch.css">
+<link rel="stylesheet" href="/theme/css/solarized.css">
+<link rel="stylesheet" href="/theme/css/main.css">
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.2/html5shiv.min.js"></script>
+</head>
+<body>
+<!--[if lt IE 7]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+
+<header class=" mg-header uk-navbar uk-navbar-attached">
+
+    <div class="uk-container uk-container-center">
+        <div class="uk-grid" data-uk-grid-margin>
+
+            <a class="mg-brand uk-navbar-brand uk-hidden-small" href="."><i class="uk-icon-flag"></i> ddaa's blog</a>
+            <div class="mg-tagline uk-navbar-content uk-hidden-small">Write-ups for CTF.</div>
+            <a class="uk-navbar-toggle uk-visible-small" href="#mg-offcanvas" data-uk-offcanvas></a>
+            <a class="mg-brand uk-navbar-brand uk-navbar-center uk-visible-small" href=".">ddaa's blog</a>
+
+        </div>
+    </div>
+</header>
+
+<main class="mg-main">
+
+<div class="uk-container uk-container-center">
+
+    <div class="uk-grid" data-uk-grid-margin>
+        
+<div class="mg-container-social uk-width-medium-1-10 uk-hidden-small">
+
+    <div class="uk-panel" id="mg-panel-social">
+        <ul class="uk-nav uk-nav-side">
+            <li>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/honeyme_pwn_cve_2015_3306.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button"><i class="uk-icon-facebook-square"></i> Share</a>
+            </li>
+            <li>
+            <a href="https://twitter.com/intent/tweet?text=honeyme%202015%20CTF%20CVE-2015-3306&url=https://ddaa.tw/honeyme_pwn_cve_2015_3306.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+            </li>
+            <li>
+            <a href="https://plus.google.com/share?url=https://ddaa.tw/honeyme_pwn_cve_2015_3306.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button"><i class="uk-icon-google-plus-square"></i> Share</a>
+            </li>
+        </ul>
+    </div>
+
+</div>
+
+<div class="uk-width-medium-7-10">
+
+    <article class="uk-article">
+        <h1 class="uk-heading-large uk-article-title" itemprop="name">honeyme 2015 CTF CVE-2015-3306</h1>
+        <p class="uk-article-meta"><time datetime="2015-08-22" itemprop="datePublished">Sat, 22 August 2015</time> in <a href="./category/pwn.html">pwn</a>, <br class="uk-visible-small"><i class="uk-icon-comment"></i> <a href="./honeyme_pwn_cve_2015_3306.html#disqus_thread" itemprop="discussionUrl"></a></p>
+<p class="uk-tag"><i class="uk-icon-tags"></i> <a href="./tag/other-ctf.html">Other CTF</a> , <a href="./tag/cve.html">CVE</a> </p>
+        <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/honeyme_pwn_cve_2015_3306.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button uk-visible-small"><i class="uk-icon-facebook-square"></i> Share</a>
+        <a href="https://twitter.com/intent/tweet?text=honeyme%202015%20CTF%20CVE-2015-3306&url=https://ddaa.tw/honeyme_pwn_cve_2015_3306.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button uk-visible-small" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+        <a href="https://plus.google.com/share?url=https://ddaa.tw/honeyme_pwn_cve_2015_3306.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button uk-visible-small"><i class="uk-icon-google-plus-square"></i> Share</a>
+
+        <section itemprop="articleBody"><p>這次比賽前一天好像吃壞肚子...<br>
+結果隔天遲到 將近 12 點才到會場<br>
+很擔心會不會到現場題目已經被 <strong>Orange</strong> 解光了 (誤<br>
+還好還是有解貢獻一點分數 XD  </p>
+<hr>
+<p>honeyme 是採 <strong>King of the Hill</strong> 的賽制<br>
+參賽隊伍要想辦法把主機首頁給換掉<br>
+寫進自己的 token<br>
+就可以有源源不絕的分數了~</p>
+<p>其中 ip .194 這台主辦方出的漏洞是利用 <code>CVE-2015-3306</code><br>
+一個 Proftpd 的邏輯漏洞<br>
+在 <code>Proftpd</code> 啟用 <code>mod_copy</code> 模組的請況下<br>
+允許攻擊者在尚未認證的情況下任意對檔案進行讀寫<br>
+可以用以下的程式碼驗證 ftp server 是否存在漏洞:  </p>
+<blockquote>
+<p>220 ProFTPD 1.3.4a Server (ProFTPD Default Installation) [127.0.0.1]<br>
+<code>SITE cpfr /etc/passwd</code><br>
+350 File or directory exists, ready for destination name<br>
+<code>SITE cpto /tmp/gg</code><br>
+250 Copy successful  </p>
+</blockquote>
+<p>這個漏洞其實第一天就發現了<br>
+可是當時不知道是主辦方刻意還是設定失誤<br>
+導致 ftp server 所在的 filesystem 是 Read-only<br>
+試了半天還是沒辦法成功利用
+到第二天卻又修復了...<br>
+一開始想直接拿 exploitdb 的 <a href="https://www.exploit-db.com/exploits/36742/">payload</a> 來攻擊主機<br>
+可是失敗了...似乎是因為 sockfd 不是 3<br>
+但是直接用 <code>metasploit</code> 會成功<br>
+只是我對 <code>metasploit</code> 其實不是很熟<br>
+一直沒辦法建立 reverse shell 回來 = =<br>
+只好去 trace 兩邊的 payload 差別在哪裡  </p>
+<p>兩份最大的差別是<br>
+<code>metasploit</code> 取得 input 的檔案是 <code>/proc/self/cmdline</code><br>
+比起從 <code>/proc/self/fd/3</code> 好用多了<br>
+雖然會把當前指令也寫進檔案<br>
+但是反正我們要寫的是網頁<br>
+把多餘的指令註解掉就行了<br>
+話說 trace msf 以後才知道原來是用 ruby 寫的...<br>
+跟 ruby 不太熟不知道要怎麼拿來直接執行<br>
+只好重寫一份 payload<br>
+上傳了 php 後門以後<br>
+剩下就交給 Orange 了 XDD  </p>
+<p>完整 payload: <a href="./exp/honeyme.py">exploit</a>  </p>
+<hr>
+<p>由於去年 honeyme 剛好跑去韓國打 secuinside<br>
+無從比較題目是否有進步 XD<br>
+難易度跟一般國際賽的 CTF 比起來的確有些差距 <br>
+不過也沒有到賽前打聽的那麼悽慘 XD<br>
+大概跟大陸那邊 xctf 一些比較小的聯賽差不多水準吧<br>
+然後誠心建議不要有太多猜謎阿~<br>
+比賽時間很短的 讓大家專注在技術上就好了 QQ  </p>
+<p>最後特別感謝有 Orange 一起參加<br>
+這次 Bamboofox 參賽其實主要目的是想培育新人<br>
+但是我是 web 智障阿 QQQQ<br>
+還好有 Orange Carry 全場 XD<br>
+兩天下來默默地學了不少 web 的技巧<br>
+衷心希望下次 CTF 可以解出 web 題...<br>
+打了兩年 CTF, web write-up 至今只有兩篇 囧  </p></section>
+        <hr class="uk-article-divider">
+    </article>
+
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+     var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+     dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+     (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+     })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+    <a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+</div>
+ 
+    
+        <div class="uk-width-medium-1-5 uk-hidden-small">
+            
+<!--
+            <div class="uk-panel uk-panel-box">
+                <form class="uk-search" action="search.html" data-uk-search>
+                    <input class="uk-search-field tipue_search" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+                </form>
+            </div>
+-->
+            <div class="uk-panel">
+                <div class="uk-button-dropdown" data-uk-dropdown>
+                    <button class="uk-button uk-button-danger"><i class="uk-icon-tags"></i>&nbsp;Tags</button>
+                    <div class="uk-dropdown">
+                        <ul class="uk-nav uk-nav-dropdown">
+                            <li class="uk-nav-header">CTF</li>
+                            <li><a href="./tag/0ctf.html">0CTF</a></li>
+                            <li><a href="./tag/3xc3ctf.html">3XC3CTF</a></li>
+                            <li><a href="./tag/bkpctf.html">BKPCTF</a></li>
+                            <li><a href="./tag/codegate-ctf.html">Codegate CTF</a></li>
+                            <li><a href="./tag/csawctf.html">CSAWCTF</a></li>
+                            <li><a href="./tag/def-con-ctf.html">DEF CON CTF</a></li>
+                            <li><a href="./tag/google-ctf.html">Google CTF</a></li>
+                            <li><a href="./tag/hitcon-ctf.html">HITCON CTF</a></li>
+                            <li><a href="./tag/other-ctf.html">Other CTF</a></li>
+                            <li><a href="./tag/plaidctf.html">PlaidCTF</a></li>
+                            <li><a href="./tag/seccon-ctf.html">SECCON CTF</a></li>
+                            <li><a href="./tag/xctf.html">XCTF</a></li>
+                            <li class="uk-nav-header">skill</li>
+                            <li><a href="./tag/armv8.html">ARMv8</a></li>
+                            <li><a href="./tag/bash.html">Bash</a></li>
+                            <li><a href="./tag/cmd-injection.html">CMD Injection</a></li>
+                            <li><a href="./tag/collision.html">Collision</a></li>
+                            <li><a href="./tag/crlf.html">CRLF</a></li>
+                            <li><a href="./tag/cve.html">CVE</a></li>
+                            <li><a href="./tag/dl_resolve.html">dl_resolve</a></li>
+                            <li><a href="./tag/engima.html">Engima</a></li>
+                            <li><a href="./tag/feistel-cipher.html">Feistel Cipher</a></li>
+                            <li><a href="./tag/format-string.html">Format String</a></li>
+                            <li><a href="./tag/frequency-analysis.html">Frequency Analysis</a></li>
+                            <li><a href="./tag/heap-overflow.html">Heap Overflow</a></li>
+                            <li><a href="./tag/jailbreak.html">Jailbreak</a></li>
+                            <li><a href="./tag/length-extension-attack.html">Length Extension Attack</a></li>
+                            <li><a href="./tag/lfi.html">LFI</a></li>
+                            <li><a href="./tag/linux-kernel.html">Linux kernel</a></li>
+                            <li><a href="./tag/mitm.html">MITM</a></li>
+                            <li><a href="./tag/off-by-one.html">Off-by-one</a></li>
+                            <li><a href="./tag/out-of-bound.html">Out-of-bound</a></li>
+                            <li><a href="./tag/pkcs1-v15.html">PKCS#1 v1.5</a></li>
+                            <li><a href="./tag/prng.html">PRNG</a></li>
+                            <li><a href="./tag/race-condition.html">Race Condition</a></li>
+                            <li><a href="./tag/rsa.html">RSA</a></li>
+                            <li><a href="./tag/shellcode.html">Shellcode</a></li>
+                            <li><a href="./tag/sql-injection.html">SQL Injection</a></li>
+                            <li><a href="./tag/stack-overflow.html">Stack Overflow</a></li>
+                            <li><a href="./tag/substitution-cipher.html">Substitution Cipher</a></li>
+                            <li><a href="./tag/trick.html">Trick</a></li>
+                            <li><a href="./tag/uninitialized.html">Uninitialized</a></li>
+                            <li><a href="./tag/vm-executable.html">VM Executable</a></li>
+                            <li><a href="./tag/wireshark.html">Wireshark</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="uk-panel uk-panel-box">
+                <ul class="uk-nav uk-nav-side">
+                    <li class="uk-nav-header">Categories</li>
+                    <li ><a href="./category/crypto.html">crypto</a></li>
+                    <li ><a href="./category/forensic.html">forensic</a></li>
+                    <li ><a href="./category/misc.html">misc</a></li>
+                    <li ><a href="./category/other.html">other</a></li>
+                    <li class="uk-active"><a href="./category/pwn.html">pwn</a></li>
+                    <li ><a href="./category/reverse.html">reverse</a></li>
+                    <li ><a href="./category/web.html">web</a></li>
+
+                    <li class="uk-nav-header">Pages</li>
+                    
+                    
+
+                    <li class="uk-nav-divider"></li>
+                    <li ><a href="./archives.html">Archives</a></li>
+                </ul>
+            </div>
+
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Receive Updates</h3>
+                <a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="mg-feed"><i class="uk-icon-rss uk-icon-medium"></i> ATOM</a>
+            </div>
+            
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Contacts</h3>
+                <a class="mg-icon-link" href="http://www.facebook.com/0xddaa">
+                    <i class="uk-icon-facebook-square uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://github.com/0xddaa">
+                    <i class="uk-icon-github uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://twitter.com/0xddaa">
+                    <i class="uk-icon-twitter uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="mailto:0xddaa@gmail.com">
+                    <i class="uk-icon-envelope-o uk-icon-medium"></i>
+                </a>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</main>
+
+<footer class="mg-footer">
+    <div class="uk-container uk-container-center uk-text-center">
+
+        <div class="mg-icons-small uk-subnav uk-visible-small">
+            <li><a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="uk-icon-button uk-icon-rss"></a></li>
+            <li>
+                <a href="http://www.facebook.com/0xddaa" class="uk-icon-button uk-icon-facebook"></a>
+            </li>
+            <li>
+                <a href="https://github.com/0xddaa" class="uk-icon-button uk-icon-github"></a>
+            </li>
+            <li>
+                <a href="https://twitter.com/0xddaa" class="uk-icon-button uk-icon-twitter"></a>
+            </li>
+            <li>
+                <a href="mailto:0xddaa@gmail.com" class="uk-icon-button uk-icon-envelope-o"></a>
+            </li>
+        </div>
+
+        <div class="mg-author uk-panel">
+            <p>&copy; 2021 <a href="mailto:0xddaa@gmail.com">ddaa</a>. All rights reserved.<br></p>
+
+            <p>Powered by <a href="http://blog.getpelican.com">Pelican</a>.<br class="uk-visible-small"> Theme <a href="https://github.com/lucachr/pelican-mg">mg</a> by <a href="https://github.com/lucachr">Luca Chiricozzi</a>.</p>
+        </div>
+    </div> 
+</footer>
+
+<div id="mg-offcanvas" class="uk-offcanvas">
+    <div class="uk-offcanvas-bar">
+
+        <!--
+        <form class="uk-search" action="search.html" data-uk-search>
+            <input class="uk-search-field" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+        </form>
+        -->
+
+        <ul class="uk-nav uk-nav-offcanvas" data-uk-nav>
+            <li class="uk-nav-header">Categories</li>
+            <li ><a href="./category/crypto.html">crypto</a></li>
+            <li ><a href="./category/forensic.html">forensic</a></li>
+            <li ><a href="./category/misc.html">misc</a></li>
+            <li ><a href="./category/other.html">other</a></li>
+            <li class="uk-active"><a href="./category/pwn.html">pwn</a></li>
+            <li ><a href="./category/reverse.html">reverse</a></li>
+            <li ><a href="./category/web.html">web</a></li>
+            <li class="uk-nav-header">Pages</li>        
+                    
+
+            <li class="uk-nav-divider"></li>
+            <li><a href="./">Archives</a></li>
+        </ul>
+    </div>
+</div>
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script>window.jQuery || document.write('<script src="js/vendor/jquery-1.10.2.min.js"><\/script>')</script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/uikit.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/components/search.min.js"></script>
+<script src="/theme/js/jquery.sticky-kit.js"></script>
+<script src="/theme/js/tipuesearch_set.js"></script>
+<script src="/theme/js/tipuesearch.js"></script>
+<script src="/theme/js/plugins.js"></script>
+<script src="/theme/js/main.js"></script>
+
+<script type="text/javascript">
+/* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+/* * * DON'T EDIT BELOW THIS LINE * * */
+(function () {
+ var s = document.createElement('script'); s.async = true;
+ s.type = 'text/javascript';
+ s.src = '//' + disqus_shortname + '.disqus.com/count.js';
+ (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+ }());
+</script>
+
+
+</body>
+</html>

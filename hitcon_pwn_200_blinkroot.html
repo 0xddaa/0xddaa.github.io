@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html lang="zh-tw" class="no-js lt-ie9 lt-ie8 lt-ie7" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 7]>         <html lang="zh-tw" class="no-js lt-ie9 lt-ie8" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 8]>         <html lang="zh-tw" class="no-js lt-ie9" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if gt IE 8]><!--> <html lang="zh-tw" class="no-js" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <!--<![endif]-->
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>HITCON 2015 PWN 200 blinkroot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="這次也是一題都沒解出來 大概是沒天份吧 不過其實後來知道怎麼偽造 link_map 以後 比賽期間寫的 payload 一度已經很接近了... 只是後來方向錯了 Orz... 這題的程式非常簡單 pseudo code 長這樣: char data[1024]; int main() { if (recvlen(0, data, 1024) == 1024) { close(0); close(1); close(1); data[(int)data] = (int128)(0x1000000000 | data[8]); puts(data[16]); } exit(0); } 前八個 byte 可以任意控制 所以會造成任意寫值的問題 這題不知道用什麼方式 組合語言是透過 xmm0 …">
+<link rel="shortcut icon" href="./images/favicon.ico" type="">
+<meta name="author" content="ddaa">
+<meta name="copyright" content="ddaa">
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:site" content="@" />
+<meta property="og:site_name" content="ddaa's blog" />
+
+<meta property="og:title" content="Hitcon 2015 pwn 200 blinkroot" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="./hitcon_pwn_200_blinkroot.html" />
+<meta name="twitter:title" content="Hitcon 2015 pwn 200 blinkroot" />
+<meta name="twitter:url" content="./hitcon_pwn_200_blinkroot.html" />
+<meta itemprop="url" content="./hitcon_pwn_200_blinkroot.html" />
+<meta property="og:description" content="這次也是一題都沒解出來 大概是沒天份吧 不過其實後來知道怎麼偽造 link_map 以後 比賽期間寫的 payload 一度已經很接近了... 只是後來方向錯了 Orz... 這題的程式非常簡單 pseudo code 長這樣: char data[1024]; int main() { if (recvlen(0, data, 1024) == 1024) { close(0); close(1); close(1); data[(int)data] = (int128)(0x1000000000 | data[8]); puts(data[16]); } exit(0); } 前八個 byte 可以任意控制 所以會造成任意寫值的問題 這題不知道用什麼方式 組合語言是透過 xmm0 …" />
+<meta name="twitter:description" content="這次也是一題都沒解出來 大概是沒天份吧 不過其實後來知道怎麼偽造 link_map 以後 比賽期間寫的 payload 一度已經很接近了... 只是後來方向錯了 Orz... 這題的程式非常簡單 pseudo code 長這樣: char data[1024]; int main() { if (recvlen(0, data, 1024) == 1024) { close(0); close(1); close(1); data[(int)data] = (int128)(0x1000000000 | data[8]); puts(data[16]); } exit(0); } 前八個 byte 可以任意控制 所以會造成任意寫值的問題 這題不知道用什麼方式 組合語言是透過 xmm0 …" />
+<meta property="og:article:published_time" content="2015-10-20" />
+<meta property="og:article:author" content="ddaa" >
+<meta property="og:article:tag" content="HITCON CTF">
+<meta property="og:article:tag" content="dl_resolve">
+<meta property="og:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta property="og:image:type" content="" />
+<meta name="twitter:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta itemprop="image" content="https://ddaa.tw/images/avatar.jpg" />
+
+<link href="./feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="ddaa's blog ATOM Feed"/>
+<link href='//fonts.googleapis.com/css?family=Open+Sans:800italic' rel='stylesheet' type='text/css'>
+<link href='//fonts.googleapis.com/css?family=Oswald' rel='stylesheet' type='text/css'>
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/uikit.min.css">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/components/search.min.css">
+<link rel="stylesheet" href="/theme/css/tipuesearch.css">
+<link rel="stylesheet" href="/theme/css/solarized.css">
+<link rel="stylesheet" href="/theme/css/main.css">
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.2/html5shiv.min.js"></script>
+</head>
+<body>
+<!--[if lt IE 7]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+
+<header class=" mg-header uk-navbar uk-navbar-attached">
+
+    <div class="uk-container uk-container-center">
+        <div class="uk-grid" data-uk-grid-margin>
+
+            <a class="mg-brand uk-navbar-brand uk-hidden-small" href="."><i class="uk-icon-flag"></i> ddaa's blog</a>
+            <div class="mg-tagline uk-navbar-content uk-hidden-small">Write-ups for CTF.</div>
+            <a class="uk-navbar-toggle uk-visible-small" href="#mg-offcanvas" data-uk-offcanvas></a>
+            <a class="mg-brand uk-navbar-brand uk-navbar-center uk-visible-small" href=".">ddaa's blog</a>
+
+        </div>
+    </div>
+</header>
+
+<main class="mg-main">
+
+<div class="uk-container uk-container-center">
+
+    <div class="uk-grid" data-uk-grid-margin>
+        
+<div class="mg-container-social uk-width-medium-1-10 uk-hidden-small">
+
+    <div class="uk-panel" id="mg-panel-social">
+        <ul class="uk-nav uk-nav-side">
+            <li>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/hitcon_pwn_200_blinkroot.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button"><i class="uk-icon-facebook-square"></i> Share</a>
+            </li>
+            <li>
+            <a href="https://twitter.com/intent/tweet?text=HITCON%202015%20PWN%20200%20blinkroot&url=https://ddaa.tw/hitcon_pwn_200_blinkroot.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+            </li>
+            <li>
+            <a href="https://plus.google.com/share?url=https://ddaa.tw/hitcon_pwn_200_blinkroot.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button"><i class="uk-icon-google-plus-square"></i> Share</a>
+            </li>
+        </ul>
+    </div>
+
+</div>
+
+<div class="uk-width-medium-7-10">
+
+    <article class="uk-article">
+        <h1 class="uk-heading-large uk-article-title" itemprop="name">HITCON 2015 PWN 200 blinkroot</h1>
+        <p class="uk-article-meta"><time datetime="2015-10-20" itemprop="datePublished">Tue, 20 October 2015</time> in <a href="./category/pwn.html">pwn</a>, <br class="uk-visible-small"><i class="uk-icon-comment"></i> <a href="./hitcon_pwn_200_blinkroot.html#disqus_thread" itemprop="discussionUrl"></a></p>
+<p class="uk-tag"><i class="uk-icon-tags"></i> <a href="./tag/hitcon-ctf.html">HITCON CTF</a> , <a href="./tag/dl_resolve.html">dl_resolve</a> </p>
+        <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/hitcon_pwn_200_blinkroot.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button uk-visible-small"><i class="uk-icon-facebook-square"></i> Share</a>
+        <a href="https://twitter.com/intent/tweet?text=HITCON%202015%20PWN%20200%20blinkroot&url=https://ddaa.tw/hitcon_pwn_200_blinkroot.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button uk-visible-small" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+        <a href="https://plus.google.com/share?url=https://ddaa.tw/hitcon_pwn_200_blinkroot.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button uk-visible-small"><i class="uk-icon-google-plus-square"></i> Share</a>
+
+        <section itemprop="articleBody"><p>這次也是一題都沒解出來<br>
+大概是沒天份吧<br>
+不過其實後來知道怎麼偽造 link_map 以後<br>
+比賽期間寫的 payload 一度已經很接近了...<br>
+只是後來方向錯了 Orz...   </p>
+<hr>
+<p>這題的程式非常簡單<br>
+pseudo code 長這樣:  </p>
+<div class="highlight"><pre><span></span>char data[1024];
+int main()
+{
+    if (recvlen(0, data, 1024) == 1024) {
+        close(0);
+        close(1);
+        close(1);
+        data[(int)data] = (int128)(0x1000000000 | data[8]);
+        puts(data[16]);
+    }
+    exit(0);
+}
+</pre></div>
+
+
+<p>前八個 byte 可以任意控制<br>
+所以會造成任意寫值的問題
+這題不知道用什麼方式<br>
+組合語言是透過 xmm0 寫值<br>
+能寫的位置一定要對齊 16 byte (addr &amp; 0xf == 0)<br>
+而且前 8 byte 還固定成 0x10<br>
+所以不能單純靠改 <code>.dynamic</code> 來解這題<br>
+那這題的作法是偽造 <em>link_map</em> 以後做 <em>dl_resolve</em><br>
+目標讓呼叫 <code>puts(data[16])</code> 變成解出 <code>system[data[16]]</code>  </p>
+<p><em>dl_resolve</em> 是 ELF 有做 lazy binding 的時候<br>
+function call 不會直接跳進 libc<br>
+而是透過 got.plt 得到 function 的 index 後<br>
+跳到 PLT0 才解析出 function 在 libc 中的位置<br>
+簡單來說大概就是做這樣的事情<br>
+<code>dl_runtime_resolve (link_map,index)</code><br>
+<em>dl_resolve</em> 裡面還會 call <code>_dl_fixup</code><br>
+<code>_dl_fixup</code> 才是真正去查 libc address 的地方  </p>
+<p>以前考過的 <em>dl_resolve</em> 的做法<br>
+是透過偽造 index<br>
+讓 <code>__fix_up</code> 去解 symbol 時落在我們偽造的 <em>SYMTAB</em> 上面<br>
+再讓查 <code>st_name</code> 時落在我們想要執行的 function 名稱<br>
+這題的沒辦法去控制 index<br>
+所以變成只能從偽造 <em>link_map</em> 下手  </p>
+<p>根據我比賽時的整整 12 個小時的嘗試...<br>
+完整的偽造 <em>link_map</em> 是不可能做到的 T__T<br>
+原因是 <em>link_map</em> 中有一個 <code>l_scope</code> 的 member<br>
+在 <code>_dl_fixup</code> 內部的 <code>_dl_lookup_symbol_x</code> 會用上<br>
+<code>l_scope</code> 會指向 <em>link_map</em> 本身<br>
+<em>link_map</em> 的結構是一個 linked_list<br>
+每個 node 保存 elf 和有使用到的 shared library symbol<br>
+<code>_dl_lookup_symbol_x</code> 比對所有 shared library 的 symbol<br>
+試著找出目前 function call 的這個 symbol<br>
+我們無法得知 glibc 的 <em>link_map</em> ... 所以不可能偽造成功 QQ  </p>
+<p>那 <em>dl_resolve</em> 還有一個利用方式是:<br>
+如果 function 已經被解析過<br>
+<a href="https://github.com/lattera/glibc/blob/master/elf/dl-runtime.c#L90">dl-runtime.c:90</a>  </p>
+<blockquote>
+<p><code>if (__builtin_expect (ELFW(ST_VISIBILITY) (sym-&gt;st_other), 0) == 0) { ... }</code><br>
+<code>else { ... }</code></p>
+</blockquote>
+<p>會直接進入 else, 不會進入 <code>_dl_lookup_symbols_x</code><br>
+直接透過 <code>link_map-&gt;l_addr + sym-&gt;st_value</code> 得到結果<br>
+這兩個值都可以透過偽造 <em>link_map</em> 來控制<br>
+如果在已知 libc 版本的情況下<br>
+我們可以讓 <code>l_addr</code> 或 <code>st_value</code> 其中一個是以解析過的 function<br>
+另一個則透過 libc 算出適當的 offset<br>
+就可以跳到任意函式了<br>
+還有一個要注意的是<br>
+原本 <em>dl_resolve</em> 解析完會將結果寫回 GOT 上<br>
+但是 offset 亂掉了結果可能會是一個不能寫的區段<br>
+所以還要偽造 <em>JMPREL</em> 結果能寫回去才行<br>
+至於要寫到哪裡就隨意了 反正之後不會用上  </p>
+<p>這題我先嘗試讓 <em>link_map</em> 落在 <code>__libc_start_main</code> 的 GOT<br>
+這樣 <code>l_addr</code> 就會是 <code>__libc_start_main</code> 的 address<br>
+再偽造 <code>STMTAB</code> 和 <em>JMPREL</em> 得到 <code>st_value</code> 並算出 system 的位置<br>
+結果是成功的...但是這題有個問題是<br>
+如果這樣子偽造, <em>link_map</em> 會在 <code>data - 0x48</code> 的位置<br>
+但是 <em>SYMTAB</em> 的位置在 <code>link_map + 0x68 == data + 0x20</code><br>
+<code>puts</code> 的參數卻是 <code>data[0x10]</code>...<br>
+所以能執行的指令就變成不能超過 16 byte XD<br>
+對於一般的題目倒也沒差<br>
+但是這題把 fd 都關了所以只能把執行結果送回來而已<br>
+16 byte 根本不夠用 Orz  </p>
+<p>第二次的做法就變成讓 <em>link_map</em> 完整的落在 data[512] 上<br>
+<code>l_addr</code> 可以隨意控制<br>
+再將 <em>SYMTAB</em> 偽造到 GOT 上<br>
+滿足 <code>st_other != 0</code> 且 <code>st_value == libc address</code><br>
+一樣要偽造 <em>JMPREL</em> 讓結果可以寫回去<br>
+就可以解出任意的 libc function 了<br>
+後來想想第二種的做法似乎限制比較少<br>
+更好利用  </p>
+<p>總結一下透過 <code>st_other</code> 的利用條件:  </p>
+<ol>
+<li>已經有 glibc 可以算 offset</li>
+<li>有大約 0x140 以上的 buffer 可以偽造 <em>link_map</em></li>
+<li>取決於 function index, 越後面所需空間越大</li>
+<li>可以 return 到 plt 上, 或是可以改 got 上的 <em>link_map</em></li>
+<li>要已知可寫的 address ... 所以開 PIE 這招大概還是不能用 Orz</li>
+</ol>
+<p>flag: <code>hitcon{81inkr0Qt I$ #B|InK1n9#}</code></p></section>
+        <hr class="uk-article-divider">
+    </article>
+
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+     var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+     dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+     (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+     })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+    <a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+</div>
+ 
+    
+        <div class="uk-width-medium-1-5 uk-hidden-small">
+            
+<!--
+            <div class="uk-panel uk-panel-box">
+                <form class="uk-search" action="search.html" data-uk-search>
+                    <input class="uk-search-field tipue_search" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+                </form>
+            </div>
+-->
+            <div class="uk-panel">
+                <div class="uk-button-dropdown" data-uk-dropdown>
+                    <button class="uk-button uk-button-danger"><i class="uk-icon-tags"></i>&nbsp;Tags</button>
+                    <div class="uk-dropdown">
+                        <ul class="uk-nav uk-nav-dropdown">
+                            <li class="uk-nav-header">CTF</li>
+                            <li><a href="./tag/0ctf.html">0CTF</a></li>
+                            <li><a href="./tag/3xc3ctf.html">3XC3CTF</a></li>
+                            <li><a href="./tag/bkpctf.html">BKPCTF</a></li>
+                            <li><a href="./tag/codegate-ctf.html">Codegate CTF</a></li>
+                            <li><a href="./tag/csawctf.html">CSAWCTF</a></li>
+                            <li><a href="./tag/def-con-ctf.html">DEF CON CTF</a></li>
+                            <li><a href="./tag/google-ctf.html">Google CTF</a></li>
+                            <li><a href="./tag/hitcon-ctf.html">HITCON CTF</a></li>
+                            <li><a href="./tag/other-ctf.html">Other CTF</a></li>
+                            <li><a href="./tag/plaidctf.html">PlaidCTF</a></li>
+                            <li><a href="./tag/seccon-ctf.html">SECCON CTF</a></li>
+                            <li><a href="./tag/xctf.html">XCTF</a></li>
+                            <li class="uk-nav-header">skill</li>
+                            <li><a href="./tag/armv8.html">ARMv8</a></li>
+                            <li><a href="./tag/bash.html">Bash</a></li>
+                            <li><a href="./tag/cmd-injection.html">CMD Injection</a></li>
+                            <li><a href="./tag/collision.html">Collision</a></li>
+                            <li><a href="./tag/crlf.html">CRLF</a></li>
+                            <li><a href="./tag/cve.html">CVE</a></li>
+                            <li><a href="./tag/dl_resolve.html">dl_resolve</a></li>
+                            <li><a href="./tag/engima.html">Engima</a></li>
+                            <li><a href="./tag/feistel-cipher.html">Feistel Cipher</a></li>
+                            <li><a href="./tag/format-string.html">Format String</a></li>
+                            <li><a href="./tag/frequency-analysis.html">Frequency Analysis</a></li>
+                            <li><a href="./tag/heap-overflow.html">Heap Overflow</a></li>
+                            <li><a href="./tag/jailbreak.html">Jailbreak</a></li>
+                            <li><a href="./tag/length-extension-attack.html">Length Extension Attack</a></li>
+                            <li><a href="./tag/lfi.html">LFI</a></li>
+                            <li><a href="./tag/linux-kernel.html">Linux kernel</a></li>
+                            <li><a href="./tag/mitm.html">MITM</a></li>
+                            <li><a href="./tag/off-by-one.html">Off-by-one</a></li>
+                            <li><a href="./tag/out-of-bound.html">Out-of-bound</a></li>
+                            <li><a href="./tag/pkcs1-v15.html">PKCS#1 v1.5</a></li>
+                            <li><a href="./tag/prng.html">PRNG</a></li>
+                            <li><a href="./tag/race-condition.html">Race Condition</a></li>
+                            <li><a href="./tag/rsa.html">RSA</a></li>
+                            <li><a href="./tag/shellcode.html">Shellcode</a></li>
+                            <li><a href="./tag/sql-injection.html">SQL Injection</a></li>
+                            <li><a href="./tag/stack-overflow.html">Stack Overflow</a></li>
+                            <li><a href="./tag/substitution-cipher.html">Substitution Cipher</a></li>
+                            <li><a href="./tag/trick.html">Trick</a></li>
+                            <li><a href="./tag/uninitialized.html">Uninitialized</a></li>
+                            <li><a href="./tag/vm-executable.html">VM Executable</a></li>
+                            <li><a href="./tag/wireshark.html">Wireshark</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="uk-panel uk-panel-box">
+                <ul class="uk-nav uk-nav-side">
+                    <li class="uk-nav-header">Categories</li>
+                    <li ><a href="./category/crypto.html">crypto</a></li>
+                    <li ><a href="./category/forensic.html">forensic</a></li>
+                    <li ><a href="./category/misc.html">misc</a></li>
+                    <li ><a href="./category/other.html">other</a></li>
+                    <li class="uk-active"><a href="./category/pwn.html">pwn</a></li>
+                    <li ><a href="./category/reverse.html">reverse</a></li>
+                    <li ><a href="./category/web.html">web</a></li>
+
+                    <li class="uk-nav-header">Pages</li>
+                    
+                    
+
+                    <li class="uk-nav-divider"></li>
+                    <li ><a href="./archives.html">Archives</a></li>
+                </ul>
+            </div>
+
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Receive Updates</h3>
+                <a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="mg-feed"><i class="uk-icon-rss uk-icon-medium"></i> ATOM</a>
+            </div>
+            
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Contacts</h3>
+                <a class="mg-icon-link" href="http://www.facebook.com/0xddaa">
+                    <i class="uk-icon-facebook-square uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://github.com/0xddaa">
+                    <i class="uk-icon-github uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://twitter.com/0xddaa">
+                    <i class="uk-icon-twitter uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="mailto:0xddaa@gmail.com">
+                    <i class="uk-icon-envelope-o uk-icon-medium"></i>
+                </a>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</main>
+
+<footer class="mg-footer">
+    <div class="uk-container uk-container-center uk-text-center">
+
+        <div class="mg-icons-small uk-subnav uk-visible-small">
+            <li><a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="uk-icon-button uk-icon-rss"></a></li>
+            <li>
+                <a href="http://www.facebook.com/0xddaa" class="uk-icon-button uk-icon-facebook"></a>
+            </li>
+            <li>
+                <a href="https://github.com/0xddaa" class="uk-icon-button uk-icon-github"></a>
+            </li>
+            <li>
+                <a href="https://twitter.com/0xddaa" class="uk-icon-button uk-icon-twitter"></a>
+            </li>
+            <li>
+                <a href="mailto:0xddaa@gmail.com" class="uk-icon-button uk-icon-envelope-o"></a>
+            </li>
+        </div>
+
+        <div class="mg-author uk-panel">
+            <p>&copy; 2021 <a href="mailto:0xddaa@gmail.com">ddaa</a>. All rights reserved.<br></p>
+
+            <p>Powered by <a href="http://blog.getpelican.com">Pelican</a>.<br class="uk-visible-small"> Theme <a href="https://github.com/lucachr/pelican-mg">mg</a> by <a href="https://github.com/lucachr">Luca Chiricozzi</a>.</p>
+        </div>
+    </div> 
+</footer>
+
+<div id="mg-offcanvas" class="uk-offcanvas">
+    <div class="uk-offcanvas-bar">
+
+        <!--
+        <form class="uk-search" action="search.html" data-uk-search>
+            <input class="uk-search-field" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+        </form>
+        -->
+
+        <ul class="uk-nav uk-nav-offcanvas" data-uk-nav>
+            <li class="uk-nav-header">Categories</li>
+            <li ><a href="./category/crypto.html">crypto</a></li>
+            <li ><a href="./category/forensic.html">forensic</a></li>
+            <li ><a href="./category/misc.html">misc</a></li>
+            <li ><a href="./category/other.html">other</a></li>
+            <li class="uk-active"><a href="./category/pwn.html">pwn</a></li>
+            <li ><a href="./category/reverse.html">reverse</a></li>
+            <li ><a href="./category/web.html">web</a></li>
+            <li class="uk-nav-header">Pages</li>        
+                    
+
+            <li class="uk-nav-divider"></li>
+            <li><a href="./">Archives</a></li>
+        </ul>
+    </div>
+</div>
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script>window.jQuery || document.write('<script src="js/vendor/jquery-1.10.2.min.js"><\/script>')</script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/uikit.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/components/search.min.js"></script>
+<script src="/theme/js/jquery.sticky-kit.js"></script>
+<script src="/theme/js/tipuesearch_set.js"></script>
+<script src="/theme/js/tipuesearch.js"></script>
+<script src="/theme/js/plugins.js"></script>
+<script src="/theme/js/main.js"></script>
+
+<script type="text/javascript">
+/* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+/* * * DON'T EDIT BELOW THIS LINE * * */
+(function () {
+ var s = document.createElement('script'); s.async = true;
+ s.type = 'text/javascript';
+ s.src = '//' + disqus_shortname + '.disqus.com/count.js';
+ (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+ }());
+</script>
+
+
+</body>
+</html>

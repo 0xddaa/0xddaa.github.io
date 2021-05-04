@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html lang="zh-tw" class="no-js lt-ie9 lt-ie8 lt-ie7" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 7]>         <html lang="zh-tw" class="no-js lt-ie9 lt-ie8" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 8]>         <html lang="zh-tw" class="no-js lt-ie9" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if gt IE 8]><!--> <html lang="zh-tw" class="no-js" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <!--<![endif]-->
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Trend Micro CTF 2017 write-ups</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Our team phddaa (what the f...) got 2400 points and 19th rank this year. We didn't spend too much time on this game because we think the competition is 48 hours. O__O There are several categories of challenges but I don't know how they distinguish. Almost of challenges need to …">
+<link rel="shortcut icon" href="./images/favicon.ico" type="">
+<meta name="author" content="ddaa">
+<meta name="copyright" content="ddaa">
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:site" content="@" />
+<meta property="og:site_name" content="ddaa's blog" />
+
+<meta property="og:title" content="Trend micro ctf 2017 write-ups" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="./tmctf_misc_2400_write_ups.html" />
+<meta name="twitter:title" content="Trend micro ctf 2017 write-ups" />
+<meta name="twitter:url" content="./tmctf_misc_2400_write_ups.html" />
+<meta itemprop="url" content="./tmctf_misc_2400_write_ups.html" />
+<meta property="og:description" content="Our team phddaa (what the f...) got 2400 points and 19th rank this year. We didn&#39;t spend too much time on this game because we think the competition is 48 hours. O__O There are several categories of challenges but I don&#39;t know how they distinguish. Almost of challenges need to …" />
+<meta name="twitter:description" content="Our team phddaa (what the f...) got 2400 points and 19th rank this year. We didn&#39;t spend too much time on this game because we think the competition is 48 hours. O__O There are several categories of challenges but I don&#39;t know how they distinguish. Almost of challenges need to …" />
+<meta property="og:article:published_time" content="2017-06-25" />
+<meta property="og:article:author" content="ddaa" >
+<meta property="og:article:tag" content="Engima">
+<meta property="og:article:tag" content="Wireshark">
+<meta property="og:article:tag" content="Frequency Analysis">
+<meta property="og:article:tag" content="Other CTF">
+<meta property="og:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta property="og:image:type" content="" />
+<meta name="twitter:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta itemprop="image" content="https://ddaa.tw/images/avatar.jpg" />
+
+<link href="./feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="ddaa's blog ATOM Feed"/>
+<link href='//fonts.googleapis.com/css?family=Open+Sans:800italic' rel='stylesheet' type='text/css'>
+<link href='//fonts.googleapis.com/css?family=Oswald' rel='stylesheet' type='text/css'>
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/uikit.min.css">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/components/search.min.css">
+<link rel="stylesheet" href="/theme/css/tipuesearch.css">
+<link rel="stylesheet" href="/theme/css/solarized.css">
+<link rel="stylesheet" href="/theme/css/main.css">
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.2/html5shiv.min.js"></script>
+</head>
+<body>
+<!--[if lt IE 7]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+
+<header class=" mg-header uk-navbar uk-navbar-attached">
+
+    <div class="uk-container uk-container-center">
+        <div class="uk-grid" data-uk-grid-margin>
+
+            <a class="mg-brand uk-navbar-brand uk-hidden-small" href="."><i class="uk-icon-flag"></i> ddaa's blog</a>
+            <div class="mg-tagline uk-navbar-content uk-hidden-small">Write-ups for CTF.</div>
+            <a class="uk-navbar-toggle uk-visible-small" href="#mg-offcanvas" data-uk-offcanvas></a>
+            <a class="mg-brand uk-navbar-brand uk-navbar-center uk-visible-small" href=".">ddaa's blog</a>
+
+        </div>
+    </div>
+</header>
+
+<main class="mg-main">
+
+<div class="uk-container uk-container-center">
+
+    <div class="uk-grid" data-uk-grid-margin>
+        
+<div class="mg-container-social uk-width-medium-1-10 uk-hidden-small">
+
+    <div class="uk-panel" id="mg-panel-social">
+        <ul class="uk-nav uk-nav-side">
+            <li>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/tmctf_misc_2400_write_ups.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button"><i class="uk-icon-facebook-square"></i> Share</a>
+            </li>
+            <li>
+            <a href="https://twitter.com/intent/tweet?text=Trend%20Micro%20CTF%202017%20write-ups&url=https://ddaa.tw/tmctf_misc_2400_write_ups.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+            </li>
+            <li>
+            <a href="https://plus.google.com/share?url=https://ddaa.tw/tmctf_misc_2400_write_ups.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button"><i class="uk-icon-google-plus-square"></i> Share</a>
+            </li>
+        </ul>
+    </div>
+
+</div>
+
+<div class="uk-width-medium-7-10">
+
+    <article class="uk-article">
+        <h1 class="uk-heading-large uk-article-title" itemprop="name">Trend Micro CTF 2017 write-ups</h1>
+        <p class="uk-article-meta"><time datetime="2017-06-25" itemprop="datePublished">Sun, 25 June 2017</time> in <a href="./category/misc.html">misc</a>, <br class="uk-visible-small"><i class="uk-icon-comment"></i> <a href="./tmctf_misc_2400_write_ups.html#disqus_thread" itemprop="discussionUrl"></a></p>
+<p class="uk-tag"><i class="uk-icon-tags"></i> <a href="./tag/engima.html">Engima</a> , <a href="./tag/wireshark.html">Wireshark</a> , <a href="./tag/frequency-analysis.html">Frequency Analysis</a> , <a href="./tag/other-ctf.html">Other CTF</a> </p>
+        <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/tmctf_misc_2400_write_ups.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button uk-visible-small"><i class="uk-icon-facebook-square"></i> Share</a>
+        <a href="https://twitter.com/intent/tweet?text=Trend%20Micro%20CTF%202017%20write-ups&url=https://ddaa.tw/tmctf_misc_2400_write_ups.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button uk-visible-small" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+        <a href="https://plus.google.com/share?url=https://ddaa.tw/tmctf_misc_2400_write_ups.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button uk-visible-small"><i class="uk-icon-google-plus-square"></i> Share</a>
+
+        <section itemprop="articleBody"><p>Our team <code>phddaa</code> (what the f...) got 2400 points and 19th rank this year.<br>
+We didn't spend too much time on this game because we think the competition is 48 hours. O__O<br>
+There are several categories of challenges but I don't know how they distinguish.<br>
+Almost of challenges need to analyze and guess... Thus, I put this write up in <strong>misc</strong> category.  </p>
+<hr>
+<h3>Analysis-Offensive 100</h3>
+<p>The problem provided a binary named <code>Forensic_Encyption</code>. The file type is <code>MS-DOS</code> but it's not a real MS-DOS executable. After a liitle guessing, I found the binary is a zip file. We can get two files, <code>file_1</code> and <code>file_2</code> after extracted <code>Forensic_Encyption</code>.  </p>
+<ul>
+<li><code>file_1</code>  <ul>
+<li>An image with jpeg format hide a string <code>VHVyaW5nX01hY2hpbmVfYXV0b21hdG9u</code> in exif information.</li>
+<li>Decode the string with base64 and get <code>Turing_Machine_automaton</code>.</li>
+</ul>
+</li>
+<li><code>file_2</code>  <ul>
+<li>Another zip file.</li>
+<li>We can extract a text file <code>key.txt</code> with the password <code>Turing_Machine_automaton</code>.</li>
+</ul>
+</li>
+</ul>
+<p><code>key.txt</code> is a file which recorded the information about <code>ipsec</code>. I spent some time at this stage to find more clues. Finally, I found another file <code>file_3</code> hidden in <code>Forensic_Encyption</code>. We can modify the header back to <code>PK</code> and extract <code>file_3</code>.<br>
+<code>file_3</code> is a pcap which recorded the traffic contained <code>ESP</code> protocol. We can decrypt the traffic with <code>key.txt</code> then get a html file.  </p>
+<div class="highlight"><pre><span></span><span class="n">Reflector</span><span class="o">:</span><span class="n">C</span> <span class="n">Thin</span><span class="o">,</span> <span class="n">beta</span><span class="o">,</span> <span class="n">I</span><span class="o">,</span> <span class="n">IV</span><span class="o">,</span> <span class="n">II</span> <span class="o">(</span><span class="n">T</span> <span class="n">M</span> <span class="n">J</span> <span class="n">F</span><span class="o">),</span> <span class="n">Plugboard</span><span class="o">:</span> <span class="n">L</span><span class="o">-</span><span class="n">X</span><span class="sr">/A-C/</span><span class="n">B</span><span class="o">-</span><span class="n">Y</span>
+
+<span class="n">TMCTF</span><span class="o">{</span><span class="n">APZTQQHYCKDLQZRG</span><span class="o">}</span>
+
+<span class="n">APZTQQHYCKDLQZRG</span> <span class="k">is</span> <span class="n">encrypted</span><span class="o">.</span>
+</pre></div>
+
+
+<p>The cipher is encrypted by <code>enigma</code>, but the website contained the encrypted key. Thus, we can decrypt the cipher easily.<br>
+I use <a href="http://summersidemakerspace.ca/projects/enigma-machine/">this</a> to encrypt and get the real flag.<br>
+The flag is: <code>TMCTF{RISINGSUNANDMOON}</code>  </p>
+<h3>Analysis-Offensive 200</h3>
+<p><code>cracktheflag.exe</code> is a simple passcode validator which received a number and judge if the number is a valid passcode.<br>
+Surprisingly, this challege can be solved without any guessing.  </p>
+<p>The condition of the valid passcode is as below:</p>
+<div class="highlight"><pre><span></span>x1 = passcode / 10000 % 100
+x2 = passcode / 100 % 100
+x3 = passcode % 100
+
+1. len(passcode) == 6 
+2. `passcode` is primes
+3. x1 is primes
+4. x2 is primes
+5. (x3 * x3 ^ x1) &gt;&gt; 8 == 0
+6 sum(ascii(d) for d in passcode) - 288 is primes
+</pre></div>
+
+
+<p>At first, I tried to solve it with <strong>z3</strong>. However, it will spend a lot of time when checking prime. I decided to write a script to filter all possible solutions.<br>
+We can list all of the primes which satisified condition 1 and 2, then filter them with condition 3 to 6.<br>
+I found 7 solutions to satisify all conditions, and the biggest one is <code>236749</code>:</p>
+<ul>
+<li>20509</li>
+<li>24109</li>
+<li>24709</li>
+<li>25309</li>
+<li>234149</li>
+<li>234749</li>
+<li>236749</li>
+</ul>
+<p>The program description said there are 8 possible solutions. I have no idea where is wrong.<br>
+Anyway, the biggest passcode is the same.  </p>
+<p>flag: <code>TMCTF{236749}</code>  </p>
+<h3>Forensic 100</h3>
+<p>The pcap is a DNS traffic. According the description, there are some messages hidden in the traffic. The hostnames are very suspicious because the last one is shorter than others. I concated them and decode it with base64, but getting nothing. I stuck in this stage until organizers posted a hint which said the cipher is <code>base</code> but not <code>base64</code>.<br>
+I tried to decode with familiar base familiy blindly, such as <code>base128</code>, <code>base32</code>. Obviously, it's wrong. Our teammate <strong>jeffxx</strong> found only 58 charcaters appeared in the cipher, then I tried <code>base58</code> and success to decode the cipher. The plaintext is an article and the flag is at the end.   </p>
+<p>flag: <code>TMCTF{DNSTunnelExfil}</code></p>
+<h3>MISC 100</h3>
+<p>I could not analyze the pcap with <em>wireshark</em> at first because the header was corruption. However, I saw there are some strings begin with <code>CLIENT_RANDOM</code> in the pcap. After googled, I known <code>CLIENT_RANDOM</code> is encrypted keys used in HTTP2 traffic. Thus, I tried to repair the pcap. <code>file</code> command said the pcap file is big-endien, but I compared with the other pacp file and found only the order of first 4 bytes is wrong. After fixed it, <strong>wireshark</strong> could open the pcap normally and I could dump the object in HTTP2 traffic manually. I'm not sure if the latest wireshark support to dump HTTP2 object.  </p>
+<p>The traffic is someone access a website about <strong>visual cryptgraphy</strong>. There are some pictures hidden in traffic and css. I stack at here then my teammate <strong>atdog</strong> found a methond to overlap the iamges and get the flag. &lt;(_ _)&gt;.  </p>
+<p>flag: <code>TMCTF{CanYouSeeThis?}</code></p></section>
+        <hr class="uk-article-divider">
+    </article>
+
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+     var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+     dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+     (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+     })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+    <a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+</div>
+ 
+    
+        <div class="uk-width-medium-1-5 uk-hidden-small">
+            
+<!--
+            <div class="uk-panel uk-panel-box">
+                <form class="uk-search" action="search.html" data-uk-search>
+                    <input class="uk-search-field tipue_search" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+                </form>
+            </div>
+-->
+            <div class="uk-panel">
+                <div class="uk-button-dropdown" data-uk-dropdown>
+                    <button class="uk-button uk-button-danger"><i class="uk-icon-tags"></i>&nbsp;Tags</button>
+                    <div class="uk-dropdown">
+                        <ul class="uk-nav uk-nav-dropdown">
+                            <li class="uk-nav-header">CTF</li>
+                            <li><a href="./tag/0ctf.html">0CTF</a></li>
+                            <li><a href="./tag/3xc3ctf.html">3XC3CTF</a></li>
+                            <li><a href="./tag/bkpctf.html">BKPCTF</a></li>
+                            <li><a href="./tag/codegate-ctf.html">Codegate CTF</a></li>
+                            <li><a href="./tag/csawctf.html">CSAWCTF</a></li>
+                            <li><a href="./tag/def-con-ctf.html">DEF CON CTF</a></li>
+                            <li><a href="./tag/google-ctf.html">Google CTF</a></li>
+                            <li><a href="./tag/hitcon-ctf.html">HITCON CTF</a></li>
+                            <li><a href="./tag/other-ctf.html">Other CTF</a></li>
+                            <li><a href="./tag/plaidctf.html">PlaidCTF</a></li>
+                            <li><a href="./tag/seccon-ctf.html">SECCON CTF</a></li>
+                            <li><a href="./tag/xctf.html">XCTF</a></li>
+                            <li class="uk-nav-header">skill</li>
+                            <li><a href="./tag/armv8.html">ARMv8</a></li>
+                            <li><a href="./tag/bash.html">Bash</a></li>
+                            <li><a href="./tag/cmd-injection.html">CMD Injection</a></li>
+                            <li><a href="./tag/collision.html">Collision</a></li>
+                            <li><a href="./tag/crlf.html">CRLF</a></li>
+                            <li><a href="./tag/cve.html">CVE</a></li>
+                            <li><a href="./tag/dl_resolve.html">dl_resolve</a></li>
+                            <li><a href="./tag/engima.html">Engima</a></li>
+                            <li><a href="./tag/feistel-cipher.html">Feistel Cipher</a></li>
+                            <li><a href="./tag/format-string.html">Format String</a></li>
+                            <li><a href="./tag/frequency-analysis.html">Frequency Analysis</a></li>
+                            <li><a href="./tag/heap-overflow.html">Heap Overflow</a></li>
+                            <li><a href="./tag/jailbreak.html">Jailbreak</a></li>
+                            <li><a href="./tag/length-extension-attack.html">Length Extension Attack</a></li>
+                            <li><a href="./tag/lfi.html">LFI</a></li>
+                            <li><a href="./tag/linux-kernel.html">Linux kernel</a></li>
+                            <li><a href="./tag/mitm.html">MITM</a></li>
+                            <li><a href="./tag/off-by-one.html">Off-by-one</a></li>
+                            <li><a href="./tag/out-of-bound.html">Out-of-bound</a></li>
+                            <li><a href="./tag/pkcs1-v15.html">PKCS#1 v1.5</a></li>
+                            <li><a href="./tag/prng.html">PRNG</a></li>
+                            <li><a href="./tag/race-condition.html">Race Condition</a></li>
+                            <li><a href="./tag/rsa.html">RSA</a></li>
+                            <li><a href="./tag/shellcode.html">Shellcode</a></li>
+                            <li><a href="./tag/sql-injection.html">SQL Injection</a></li>
+                            <li><a href="./tag/stack-overflow.html">Stack Overflow</a></li>
+                            <li><a href="./tag/substitution-cipher.html">Substitution Cipher</a></li>
+                            <li><a href="./tag/trick.html">Trick</a></li>
+                            <li><a href="./tag/uninitialized.html">Uninitialized</a></li>
+                            <li><a href="./tag/vm-executable.html">VM Executable</a></li>
+                            <li><a href="./tag/wireshark.html">Wireshark</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="uk-panel uk-panel-box">
+                <ul class="uk-nav uk-nav-side">
+                    <li class="uk-nav-header">Categories</li>
+                    <li ><a href="./category/crypto.html">crypto</a></li>
+                    <li ><a href="./category/forensic.html">forensic</a></li>
+                    <li class="uk-active"><a href="./category/misc.html">misc</a></li>
+                    <li ><a href="./category/other.html">other</a></li>
+                    <li ><a href="./category/pwn.html">pwn</a></li>
+                    <li ><a href="./category/reverse.html">reverse</a></li>
+                    <li ><a href="./category/web.html">web</a></li>
+
+                    <li class="uk-nav-header">Pages</li>
+                    
+                    
+
+                    <li class="uk-nav-divider"></li>
+                    <li ><a href="./archives.html">Archives</a></li>
+                </ul>
+            </div>
+
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Receive Updates</h3>
+                <a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="mg-feed"><i class="uk-icon-rss uk-icon-medium"></i> ATOM</a>
+            </div>
+            
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Contacts</h3>
+                <a class="mg-icon-link" href="http://www.facebook.com/0xddaa">
+                    <i class="uk-icon-facebook-square uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://github.com/0xddaa">
+                    <i class="uk-icon-github uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://twitter.com/0xddaa">
+                    <i class="uk-icon-twitter uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="mailto:0xddaa@gmail.com">
+                    <i class="uk-icon-envelope-o uk-icon-medium"></i>
+                </a>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</main>
+
+<footer class="mg-footer">
+    <div class="uk-container uk-container-center uk-text-center">
+
+        <div class="mg-icons-small uk-subnav uk-visible-small">
+            <li><a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="uk-icon-button uk-icon-rss"></a></li>
+            <li>
+                <a href="http://www.facebook.com/0xddaa" class="uk-icon-button uk-icon-facebook"></a>
+            </li>
+            <li>
+                <a href="https://github.com/0xddaa" class="uk-icon-button uk-icon-github"></a>
+            </li>
+            <li>
+                <a href="https://twitter.com/0xddaa" class="uk-icon-button uk-icon-twitter"></a>
+            </li>
+            <li>
+                <a href="mailto:0xddaa@gmail.com" class="uk-icon-button uk-icon-envelope-o"></a>
+            </li>
+        </div>
+
+        <div class="mg-author uk-panel">
+            <p>&copy; 2021 <a href="mailto:0xddaa@gmail.com">ddaa</a>. All rights reserved.<br></p>
+
+            <p>Powered by <a href="http://blog.getpelican.com">Pelican</a>.<br class="uk-visible-small"> Theme <a href="https://github.com/lucachr/pelican-mg">mg</a> by <a href="https://github.com/lucachr">Luca Chiricozzi</a>.</p>
+        </div>
+    </div> 
+</footer>
+
+<div id="mg-offcanvas" class="uk-offcanvas">
+    <div class="uk-offcanvas-bar">
+
+        <!--
+        <form class="uk-search" action="search.html" data-uk-search>
+            <input class="uk-search-field" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+        </form>
+        -->
+
+        <ul class="uk-nav uk-nav-offcanvas" data-uk-nav>
+            <li class="uk-nav-header">Categories</li>
+            <li ><a href="./category/crypto.html">crypto</a></li>
+            <li ><a href="./category/forensic.html">forensic</a></li>
+            <li class="uk-active"><a href="./category/misc.html">misc</a></li>
+            <li ><a href="./category/other.html">other</a></li>
+            <li ><a href="./category/pwn.html">pwn</a></li>
+            <li ><a href="./category/reverse.html">reverse</a></li>
+            <li ><a href="./category/web.html">web</a></li>
+            <li class="uk-nav-header">Pages</li>        
+                    
+
+            <li class="uk-nav-divider"></li>
+            <li><a href="./">Archives</a></li>
+        </ul>
+    </div>
+</div>
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script>window.jQuery || document.write('<script src="js/vendor/jquery-1.10.2.min.js"><\/script>')</script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/uikit.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/components/search.min.js"></script>
+<script src="/theme/js/jquery.sticky-kit.js"></script>
+<script src="/theme/js/tipuesearch_set.js"></script>
+<script src="/theme/js/tipuesearch.js"></script>
+<script src="/theme/js/plugins.js"></script>
+<script src="/theme/js/main.js"></script>
+
+<script type="text/javascript">
+/* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+/* * * DON'T EDIT BELOW THIS LINE * * */
+(function () {
+ var s = document.createElement('script'); s.async = true;
+ s.type = 'text/javascript';
+ s.src = '//' + disqus_shortname + '.disqus.com/count.js';
+ (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+ }());
+</script>
+
+
+</body>
+</html>

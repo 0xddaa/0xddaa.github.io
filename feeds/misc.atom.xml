@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>ddaa's blog - misc</title><link href="https://ddaa.tw/" rel="alternate"></link><link href="https://ddaa.tw/feeds/misc.atom.xml" rel="self"></link><id>https://ddaa.tw/</id><updated>2019-01-09T20:23:00+08:00</updated><entry><title>35C3CTF 2018 zajebiste 290 logrotate</title><link href="https://ddaa.tw/35c3ctf_2018_zajebiste_290_logrotate.html" rel="alternate"></link><published>2019-01-09T20:23:00+08:00</published><updated>2019-01-09T20:23:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2019-01-09:/35c3ctf_2018_zajebiste_290_logrotate.html</id><summary type="html">&lt;p&gt;35C3 今年的題目也是超難 = =&lt;br&gt;
+各種 browser 和 sandbox escape 題&lt;br&gt;
+現在的 CTF 真的越來越 real world 啦&lt;br&gt;
+BTW，&lt;code&gt;zajebiste&lt;/code&gt; 的分類聽說就是 zero day 的意思 XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;在星期五還在上班的時候，有人就敲我說有 &lt;code&gt;logrotate&lt;/code&gt; 這題  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;有 log 題欸 你不是 log 大王嗎  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;ok, challenge accepted. = =+&lt;br&gt;
+結果從星期五晚上開始看，一直到星期六晚上才想到作法 QQ&lt;br&gt;
+(雖然中間去幫忙看了一下 &lt;code&gt;collection&lt;/code&gt;)  &lt;/p&gt;
+&lt;p&gt;簡單介紹一下這題的環境&lt;br&gt;
+nc 連上通過 pow 的考驗之後&lt;br&gt;
+會初始化一個 docker container 然後進入 chroot&lt;br&gt;
+得到的權限會是 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;35C3 今年的題目也是超難 = =&lt;br&gt;
+各種 browser 和 sandbox escape 題&lt;br&gt;
+現在的 CTF 真的越來越 real world 啦&lt;br&gt;
+BTW，&lt;code&gt;zajebiste&lt;/code&gt; 的分類聽說就是 zero day 的意思 XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;在星期五還在上班的時候，有人就敲我說有 &lt;code&gt;logrotate&lt;/code&gt; 這題  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;有 log 題欸 你不是 log 大王嗎  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;ok, challenge accepted. = =+&lt;br&gt;
+結果從星期五晚上開始看，一直到星期六晚上才想到作法 QQ&lt;br&gt;
+(雖然中間去幫忙看了一下 &lt;code&gt;collection&lt;/code&gt;)  &lt;/p&gt;
+&lt;p&gt;簡單介紹一下這題的環境&lt;br&gt;
+nc 連上通過 pow 的考驗之後&lt;br&gt;
+會初始化一個 docker container 然後進入 chroot&lt;br&gt;
+得到的權限會是 &lt;code&gt;uid=1000(user) gid=1000(user) groups=1000(user),0(root)&lt;/code&gt;&lt;br&gt;
+要想辦法讀到只有 root 可以存取的 &lt;code&gt;/flag&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;一開始想嘗試直接 escape chroot 的限制，不過失敗了 QQ&lt;br&gt;
+原因應該是 debain 不允許非 root 去 ptrace 別人的 process&lt;br&gt;
+只好認真看題目的結構&lt;br&gt;
+題目給了一個 setuid 的 binary &lt;code&gt;run_cron&lt;/code&gt;&lt;br&gt;
+允許我們以 root 的權限觸發 logrotate&lt;br&gt;
+同時故意放了一個有問題的設定檔 &lt;code&gt;/etc/logrotate.d/pwnme&lt;/code&gt;  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;/tmp/log/pwnme.log {
+    daily
+    rotate 12
+    missing ok
+    notifempty
+    size 1K
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;嘗試自行建立 &lt;code&gt;/tmp/log/pwmne.log&lt;/code&gt;&lt;br&gt;
+(&lt;code&gt;/tmp/log&lt;/code&gt; 的權限必須是 700 否則會噴 error)&lt;br&gt;
+可以成功觸發 logrotate&lt;br&gt;
+但要如何利用呢...?  &lt;/p&gt;
+&lt;p&gt;第一個直覺就是 symbolic link 會出問題 XD&lt;br&gt;
+嘗試了一下...什麼時都沒發生&lt;br&gt;
+開 debug mode 來看可以得知原因是有 symlink 做檢查  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;log /tmp/log/pwnme.log is symbolic link. Rotation of symbolic links is not allowed to avoid security issues -- skipping.  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;1125     if ((sb.st_mode &amp;amp; S_IFMT) == S_IFLNK) {
+1126         message(MESS_DEBUG, &amp;quot;  log %s is symbolic link. Rotation of symbolic&amp;quot;
+1127             &amp;quot; links is not allowed to avoid security issues -- skipping.\n&amp;quot;,
+1128             log-&amp;gt;files[logNum]);
+1129         return 0;
+1130     }
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;但顯然存在 &lt;a href="https://cwe.mitre.org/data/definitions/367.html"&gt;TOCTOU&lt;/a&gt; 的問題&lt;br&gt;
+只要透過 while loop 不斷的讓 pwnme.log 在 symlink 和 normal file 之間切換&lt;br&gt;
+就有機會 bypass 掉這個檢查&lt;br&gt;
+但因為題目給的 logrotate 設定檔只是單純把 log 做 &lt;code&gt;rename&lt;/code&gt;&lt;br&gt;
+因此完全沒有用...XDD&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;ls -l&lt;br&gt;
+total 0&lt;br&gt;
+lrwxrwxrwx 1 user user 11 Jan  8 09:25 pwnme.log.1 -&amp;gt; /etc/passwd  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;雖然沒有用，不過這帶給我一個思路是：&lt;br&gt;
+&lt;strong&gt;logrotate 其他地方會不會也存在 TOCTOU 的問題呢 ?&lt;/strong&gt;  &lt;/p&gt;
+&lt;p&gt;因此就開始了 logrotate 的 code review 之路&lt;br&gt;
+BTW，比賽環境使用的版本是 3.11.0&lt;br&gt;
+比賽過程有稍微走錯路去確認是不是考 CVE issue&lt;br&gt;
+後來才發現原來 CentOS 9 現行的版本就是 3.11.0 ... Orz  &lt;/p&gt;
+&lt;p&gt;code review 完發現還有一個地方 "乍看之下" 有類似的問題&lt;br&gt;
+在 logrotate 設定檔包含 &lt;code&gt;create&lt;/code&gt; 的情況&lt;br&gt;
+最後會呼叫 &lt;code&gt;createOutputFile&lt;/code&gt; 產生目前最新的 log 檔案&lt;br&gt;
+&lt;code&gt;createOutputFile&lt;/code&gt; 會先檢查目前 output 的位置是否存在檔案&lt;br&gt;
+如果存在會強制 rename 成 &lt;code&gt;filename-%Y%m%d%H.backup&lt;/code&gt;&lt;br&gt;
+(重試兩次，兩次都失敗會放棄建立檔案)&lt;br&gt;
+然後用 &lt;code&gt;fchmod&lt;/code&gt; 將檔案改成原本 log 的權限  &lt;/p&gt;
+&lt;p&gt;原本看到這個想法是，一樣透過 race condition 的方式&lt;br&gt;
+如果能在更改權限的時候觸發到，就可以把 &lt;code&gt;/flag&lt;/code&gt; 的權限改成 user&lt;br&gt;
+仔細思考之後是不可能做得到的&lt;br&gt;
+因為這邊用的是 &lt;code&gt;open&lt;/code&gt; + &lt;code&gt;fchmod&lt;/code&gt; 而不是 &lt;code&gt;stat&lt;/code&gt; + &lt;code&gt;chmod&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;後來又想是不是可以在 &lt;code&gt;rename&lt;/code&gt; 的過程中做到 race condition ?&lt;br&gt;
+但據我了解 &lt;code&gt;rename&lt;/code&gt; 會是由 &lt;a href="https://code.woboq.org/userspace/glibc/sysdeps/unix/sysv/linux/rename.c.html"&gt;syscall&lt;/a&gt; 來完成&lt;br&gt;
+算是 atomic 的操作，不太可能達成&lt;br&gt;
+只好思索其他的方式  &lt;/p&gt;
+&lt;p&gt;最後發現問題還是出在 &lt;code&gt;createOutputFile&lt;/code&gt; 身上&lt;br&gt;
+用 verbose mode 可以得知完整的 logrotate 的流程會是：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;renaming /tmp/log/pwnme.log.12 to /tmp/log/pwnme.log.13 (rotatecount 12, logstart 1, i 12),
+renaming /tmp/log/pwnme.log.11 to /tmp/log/pwnme.log.12 (rotatecount 12, logstart 1, i 11),
+renaming /tmp/log/pwnme.log.10 to /tmp/log/pwnme.log.11 (rotatecount 12, logstart 1, i 10),
+renaming /tmp/log/pwnme.log.9 to /tmp/log/pwnme.log.10 (rotatecount 12, logstart 1, i 9),
+renaming /tmp/log/pwnme.log.8 to /tmp/log/pwnme.log.9 (rotatecount 12, logstart 1, i 8),
+renaming /tmp/log/pwnme.log.7 to /tmp/log/pwnme.log.8 (rotatecount 12, logstart 1, i 7),
+renaming /tmp/log/pwnme.log.6 to /tmp/log/pwnme.log.7 (rotatecount 12, logstart 1, i 6),
+renaming /tmp/log/pwnme.log.5 to /tmp/log/pwnme.log.6 (rotatecount 12, logstart 1, i 5),
+renaming /tmp/log/pwnme.log.4 to /tmp/log/pwnme.log.5 (rotatecount 12, logstart 1, i 4),
+renaming /tmp/log/pwnme.log.3 to /tmp/log/pwnme.log.4 (rotatecount 12, logstart 1, i 3),
+renaming /tmp/log/pwnme.log.2 to /tmp/log/pwnme.log.3 (rotatecount 12, logstart 1, i 2),
+renaming /tmp/log/pwnme.log.1 to /tmp/log/pwnme.log.2 (rotatecount 12, logstart 1, i 1),
+renaming /tmp/log/pwnme.log.0 to /tmp/log/pwnme.log.1 (rotatecount 12, logstart 1, i 0),
+old log /tmp/log/pwnme.log.0 does not exist
+renaming /tmp/log/pwnme.log to /tmp/log/pwnme.log.1
+creating new /tmp/log/pwnme.log mode = 0644 uid = 1000 gid = 1000
+removing old log /tmp/log/pwnme.log.13
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;在 &lt;code&gt;findNeedRotating&lt;/code&gt; 執行完之後 (也就是前面檢查 folder 700 和 symlink 的地方)&lt;br&gt;
+就不會再對 log 的儲存位置做檢查了&lt;br&gt;
+後面會用 rename 進行 logrotate，但如前述應該沒辦法利用&lt;br&gt;
+最後 creating 時會用 &lt;code&gt;open&lt;/code&gt; 創建新的檔案&lt;br&gt;
+在這之前沒有再進行一次路徑檢查，也存在 TOCTOU 的問題&lt;br&gt;
+因此有機會透過 symlink race codition 的方式&lt;br&gt;
+達成在任意路徑創造出可讀寫的 &lt;code&gt;pwnme.log&lt;/code&gt; 檔案  &lt;/p&gt;
+&lt;p&gt;由於有 &lt;code&gt;run_cron&lt;/code&gt; 的存在，我選擇建 symlink 的目標是 &lt;code&gt;/etc/cron.d&lt;/code&gt;&lt;br&gt;
+&lt;code&gt;run_cron&lt;/code&gt; 做的事情其實是 &lt;code&gt;execl("/bin/run-parts", "run-parts", "--regex", ".*", "/etc/cron.d", NULL);&lt;/code&gt;&lt;br&gt;
+成功將 symlink 建成 &lt;code&gt;/etc/cron.d&lt;/code&gt; 後&lt;br&gt;
+透過編輯 &lt;code&gt;/etc/cron.d/pwnme.log&lt;/code&gt; 就可以以 root 執行任意指令  &lt;/p&gt;
+&lt;p&gt;剩下的問題就是如何剛好在 call &lt;code&gt;open&lt;/code&gt; 的時候達成 race condition 了&lt;br&gt;
+一開始單純用 while loop 切換 symlink 和 folder&lt;br&gt;
+但跑了幾萬輪之後還是沒有成功...Orz&lt;br&gt;
+後來做了些修改，多跑了一個 while loop 重複 &lt;code&gt;touch /tmp/log/pwnme.log&lt;/code&gt;&lt;br&gt;
+前面有提到 &lt;code&gt;createOutputFile&lt;/code&gt; 會在 log 存在時進行備份&lt;br&gt;
+利用這個行為增加 race condition 成功的機會&lt;br&gt;
+最後大約放著跑了一個小時後&lt;br&gt;
+成功拿到建立 &lt;code&gt;/etc/cron.d/pwnme.log&lt;/code&gt; 並拿到 root shell  &lt;/p&gt;
+&lt;p&gt;這題雖然分類在 &lt;code&gt;zajebiste&lt;/code&gt; 底下&lt;br&gt;
+除了有問題的設定檔，的確也幾乎是 real world 的環境配置&lt;br&gt;
+但實際上發生問題的機率實在是太低了 = =&lt;br&gt;
+這題如果沒有辦法用 while loop 去重複執行 &lt;code&gt;run_cron&lt;/code&gt; 根本沒辦法觸發問題...囧rz&lt;br&gt;
+我猜也是因為這樣出題者才懶得回報問題吧 (茶  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;35C3_rotating_as_intended&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;exploit: &lt;a href="https://ddaa.tw/exp/logrotate.sh"&gt;exp.sh&lt;/a&gt;&lt;/p&gt;</content><category term="3XC3CTF"></category><category term="Bash"></category><category term="Race Condition"></category></entry><entry><title>34C3CTF 2017 MISC 162 minbashmaxfun</title><link href="https://ddaa.tw/34c3ctf_2017_misc_162_minbashmaxfun.html" rel="alternate"></link><published>2018-01-04T01:05:00+08:00</published><updated>2018-01-04T01:05:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2018-01-04:/34c3ctf_2017_misc_162_minbashmaxfun.html</id><summary type="html">&lt;p&gt;34C3 跟去年一樣是在上班時間舉辦&lt;br&gt;
+沒什麼時間打，第二天的下班時間幾乎都在解這題&lt;br&gt;
+這題應該是至今解過限制最多的 cmd injection 題目了...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目會把我們的 input 丟到 &lt;code&gt;execl("/bin/bash", "/bin/bash", "-c", input, NULL)&lt;/code&gt; 執行&lt;br&gt;
+但 input 只能包含以下字元：&lt;code&gt;$ ( ) # ! { } &amp;lt; \ '&lt;/code&gt;&lt;br&gt;
+而且執行前會把 stdin 先關掉，無法交互執行指令&lt;br&gt;
+（後面會說明這有多靠北 = =）&lt;br&gt;
+原本以為是類似 &lt;a href="http://pwnable.kr"&gt;pwnable.kr&lt;/a&gt; 的 &lt;strong&gt;cmd3&lt;/strong&gt;&lt;br&gt;
+可以拿以前的 payload 來用...果然是太天真了 QQ&lt;br&gt;
+這題比起 &lt;strong&gt;cmd3&lt;/strong&gt; 更困難的地方在於連路徑都無法使用&lt;br&gt;
+不過，解題思路還是有相似之處  &lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;cmd3&lt;/strong&gt; 也限制了輸入英數字，但可以用 &lt;code&gt;$((a+b))&lt;/code&gt; 的方式做出各種數字&lt;br&gt;
+這題連運算符號也限制了 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;34C3 跟去年一樣是在上班時間舉辦&lt;br&gt;
+沒什麼時間打，第二天的下班時間幾乎都在解這題&lt;br&gt;
+這題應該是至今解過限制最多的 cmd injection 題目了...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目會把我們的 input 丟到 &lt;code&gt;execl("/bin/bash", "/bin/bash", "-c", input, NULL)&lt;/code&gt; 執行&lt;br&gt;
+但 input 只能包含以下字元：&lt;code&gt;$ ( ) # ! { } &amp;lt; \ '&lt;/code&gt;&lt;br&gt;
+而且執行前會把 stdin 先關掉，無法交互執行指令&lt;br&gt;
+（後面會說明這有多靠北 = =）&lt;br&gt;
+原本以為是類似 &lt;a href="http://pwnable.kr"&gt;pwnable.kr&lt;/a&gt; 的 &lt;strong&gt;cmd3&lt;/strong&gt;&lt;br&gt;
+可以拿以前的 payload 來用...果然是太天真了 QQ&lt;br&gt;
+這題比起 &lt;strong&gt;cmd3&lt;/strong&gt; 更困難的地方在於連路徑都無法使用&lt;br&gt;
+不過，解題思路還是有相似之處  &lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;cmd3&lt;/strong&gt; 也限制了輸入英數字，但可以用 &lt;code&gt;$((a+b))&lt;/code&gt; 的方式做出各種數字&lt;br&gt;
+這題連運算符號也限制了...不過原理大同小異  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;$#&lt;/code&gt; =&amp;gt; 0  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;$#&lt;/code&gt; 的意思是參數的個數，這題沒有其餘的參數所以會是 0   &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;$(($#&amp;lt;$$))&lt;/code&gt; =&amp;gt; 1&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;$$&lt;/code&gt; 代表的是目前的 pid ，pid 會 &amp;gt; 0 所以可以得到 1&lt;/li&gt;
+&lt;li&gt;後來看 write-up 學到 &lt;code&gt;${##}&lt;/code&gt; 就能得到 1 &lt;/li&gt;
+&lt;li&gt;大括號前面加 &lt;code&gt;#&lt;/code&gt; 的用意是取得變數的長度&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;$((1&amp;lt;&amp;lt;1))&lt;/code&gt; =&amp;gt; 2  &lt;ul&gt;
+&lt;li&gt;shift 運算，bj4&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;$((2#bbb))&lt;/code&gt; =&amp;gt; 任意數字&lt;ul&gt;
+&lt;li&gt;將 bbb 以二進制轉換成數字&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;接著就卡關了好一陣子，大概花了兩三小時 RTFM&lt;br&gt;
+推薦超詳細的 bash 文件 &lt;a href="http://tldp.org/LDP/abs/html/abs-guide.html"&gt;Advanced Bash-Scripting Guide&lt;/a&gt;&lt;br&gt;
+這題因為可用的字元超少，所以目標是先弄懂每個字元的功能&lt;br&gt;
+早些時候 freetsubasa 提出了從 &lt;code&gt;$0&lt;/code&gt; 的得到 &lt;code&gt;bash&lt;/code&gt; 的思路&lt;br&gt;
+但透過變數取得的數字會喪失原本的功能&lt;br&gt;
+原本以為無法，結果在翻文件的過程發現 &lt;code&gt;${!#}&lt;/code&gt; 這個東西&lt;br&gt;
+效果等同於 &lt;code&gt;$BASH_ARGV&lt;/code&gt;，其值會執行目前 script 的名稱&lt;br&gt;
+前面提到這題的執行環境是 &lt;code&gt;/bin/bash -c input&lt;/code&gt;&lt;br&gt;
+因此透過 &lt;code&gt;${!#}&lt;/code&gt; 我們可以取得 &lt;code&gt;/bin/bash&lt;/code&gt; 的字串  &lt;/p&gt;
+&lt;p&gt;在正常的環境下，搞出 &lt;code&gt;/bin/bash&lt;/code&gt; 就可以執行 shell 了&lt;br&gt;
+但這題因為把 stdin 給關了&lt;br&gt;
+即使執行 &lt;code&gt;/bin/bash&lt;/code&gt; 也會立刻結束程序&lt;br&gt;
+因此要能執行任意指令才能解這一題...&lt;br&gt;
+透過 $ 編碼的數字無法在同一層 shell 解析&lt;br&gt;
+但是可以將編碼餵給再次執行的 bash&lt;br&gt;
+由第二層的 bash 來解析編碼&lt;br&gt;
+這部分可以透過 pipe 來達成&lt;br&gt;
+&lt;code&gt;&amp;lt;&amp;lt;&amp;lt;&lt;/code&gt; 的用途是將任意字串交由前面的指令執行&lt;br&gt;
+bash 可以用 &lt;code&gt;$'\ooo'&lt;/code&gt; 的形式來表達任意字元（ooo 是字元轉 ascii 的八進制）&lt;br&gt;
+結合這兩者，我們就可以執行任意指令&lt;br&gt;
+到目前為止，不算數字編碼的部分，payload 會長的像這樣：&lt;br&gt;
+&lt;code&gt;${!#}&amp;lt;&amp;lt;&amp;lt;$'\154\163'&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;上述的做法雖然已經可以執行任意指令，但不能給參數...&lt;br&gt;
+原因將空白 pipe 進前面的指令，會被當成同一個參數內的東西&lt;br&gt;
+沒辦法作為第二層 bash 分隔符號&lt;br&gt;
+這邊的解決方式是傳入 &lt;code&gt;{a,b}&lt;/code&gt; 的語法&lt;br&gt;
+會被 bash 自動擴展成兩個不同的參數 &lt;code&gt;a b&lt;/code&gt;&lt;br&gt;
+也就是說， shell 裡輸入 &lt;code&gt;{ls,-al}&lt;/code&gt;&lt;br&gt;
+效果等同於輸入 &lt;code&gt;ls -al&lt;/code&gt;&lt;br&gt;
+至此，我們已經可以做到執行任意指令&lt;br&gt;
+接下來就只要 &lt;code&gt;cat /flag&lt;/code&gt; 就可以拿到 flag 了~  &lt;/p&gt;
+&lt;p&gt;...並不是&lt;br&gt;
+flag 的權限是 root:root 400&lt;br&gt;
+題目還準備了一個 setuid 的 &lt;code&gt;/get_flag&lt;/code&gt;&lt;br&gt;
+要執行才能拿到 flag  ，但執行下去的結果是：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Please solve this little captcha:&lt;br&gt;
+4202242116 + 2217953831 + 1255076993 + 3775205480 + 2795260270&lt;br&gt;
+14245738690 != 0 :(  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;不知道各位看官是不是還記得 stdin 已經被關閉了&lt;br&gt;
+以目前的情況而言，我們必須在執行前就輸入好答案&lt;br&gt;
+所以這個看似簡單的 captcha ，實際上是超靠北的問題&lt;br&gt;
+為此我還將 &lt;code&gt;get_flag&lt;/code&gt; dump 出來分析看 captcha 有沒有辦法預測 XD  &lt;/p&gt;
+&lt;p&gt;發現這個問題後，第一個想法是打 reverse shell 出來&lt;br&gt;
+這樣就可以無視 stdin 被關掉的問題&lt;br&gt;
+但發現目前的 payload 沒辦法在第二層 bash 裡面處理 pipe 符號 &lt;br&gt;
+為了做到 fd 重導向，必須在第二層 bash 再次執行 &lt;code&gt;bash -c &amp;lt;cmd&amp;gt;&lt;/code&gt;&lt;br&gt;
+結果解完 pipe 的問題才發現 sandbox 裡面沒有網路環境 囧&lt;br&gt;
+因此 captcha 唯一的解法是透過 pipe 得到 &lt;code&gt;/get_flag&lt;/code&gt; 的 output&lt;br&gt;
+計算完結果後在導回 &lt;code&gt;/get_flag&lt;/code&gt; 的 stdin  &lt;/p&gt;
+&lt;p&gt;這部分解法就很多種了&lt;br&gt;
+我想到的是透過 &lt;code&gt;tail&lt;/code&gt; 和 &lt;code&gt;tee&lt;/code&gt; 來達成：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;tail -F /tmp/log | /get_flag | tee /tmp/result &amp;amp;&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;echo $answer &amp;gt; /tmp/log&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;cat /tmp/result&lt;/code&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;不過 mike 大概早我五分鐘先解出來了 XD&lt;br&gt;
+作法是上傳 elf，透過 elf 處理 pipe 的問題 &lt;br&gt;
+官方的解法是用 &lt;code&gt;exec&lt;/code&gt; 和 pid 做 fd 重導向&lt;br&gt;
+個人覺得 &lt;strong&gt;LosFuzzys&lt;/strong&gt; 的&lt;a href="https://losfuzzys.github.io/writeup/2017/12/30/34c3ctf-minbashmaxfun/"&gt;解法&lt;/a&gt;最漂亮&lt;br&gt;
+可以在一行指令搞定  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;34C3_HAHAHA_you_bashed_it_You_truly_are_a_god_of_BASH&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;exploit: &lt;a href="https://ddaa.tw/exp/minbashmaxfun.py"&gt;exp.py&lt;/a&gt;&lt;/p&gt;</content><category term="3XC3CTF"></category><category term="Bash"></category><category term="CMD Injection"></category></entry><entry><title>Trend Micro CTF 2017 write-ups</title><link href="https://ddaa.tw/tmctf_misc_2400_write_ups.html" rel="alternate"></link><published>2017-06-25T20:01:00+08:00</published><updated>2017-06-25T20:01:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2017-06-25:/tmctf_misc_2400_write_ups.html</id><summary type="html">&lt;p&gt;Our team &lt;code&gt;phddaa&lt;/code&gt; (what the f...) got 2400 points and 19th rank this year.&lt;br&gt;
+We didn't spend too much time on this game because we think the competition is 48 hours. O__O&lt;br&gt;
+There are several categories of challenges but I don't know how they distinguish.&lt;br&gt;
+Almost of challenges need to …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Our team &lt;code&gt;phddaa&lt;/code&gt; (what the f...) got 2400 points and 19th rank this year.&lt;br&gt;
+We didn't spend too much time on this game because we think the competition is 48 hours. O__O&lt;br&gt;
+There are several categories of challenges but I don't know how they distinguish.&lt;br&gt;
+Almost of challenges need to analyze and guess... Thus, I put this write up in &lt;strong&gt;misc&lt;/strong&gt; category.  &lt;/p&gt;
+&lt;hr&gt;
+&lt;h3&gt;Analysis-Offensive 100&lt;/h3&gt;
+&lt;p&gt;The problem provided a binary named &lt;code&gt;Forensic_Encyption&lt;/code&gt;. The file type is &lt;code&gt;MS-DOS&lt;/code&gt; but it's not a real MS-DOS executable. After a liitle guessing, I found the binary is a zip file. We can get two files, &lt;code&gt;file_1&lt;/code&gt; and &lt;code&gt;file_2&lt;/code&gt; after extracted &lt;code&gt;Forensic_Encyption&lt;/code&gt;.  &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;file_1&lt;/code&gt;  &lt;ul&gt;
+&lt;li&gt;An image with jpeg format hide a string &lt;code&gt;VHVyaW5nX01hY2hpbmVfYXV0b21hdG9u&lt;/code&gt; in exif information.&lt;/li&gt;
+&lt;li&gt;Decode the string with base64 and get &lt;code&gt;Turing_Machine_automaton&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;file_2&lt;/code&gt;  &lt;ul&gt;
+&lt;li&gt;Another zip file.&lt;/li&gt;
+&lt;li&gt;We can extract a text file &lt;code&gt;key.txt&lt;/code&gt; with the password &lt;code&gt;Turing_Machine_automaton&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;key.txt&lt;/code&gt; is a file which recorded the information about &lt;code&gt;ipsec&lt;/code&gt;. I spent some time at this stage to find more clues. Finally, I found another file &lt;code&gt;file_3&lt;/code&gt; hidden in &lt;code&gt;Forensic_Encyption&lt;/code&gt;. We can modify the header back to &lt;code&gt;PK&lt;/code&gt; and extract &lt;code&gt;file_3&lt;/code&gt;.&lt;br&gt;
+&lt;code&gt;file_3&lt;/code&gt; is a pcap which recorded the traffic contained &lt;code&gt;ESP&lt;/code&gt; protocol. We can decrypt the traffic with &lt;code&gt;key.txt&lt;/code&gt; then get a html file.  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;Reflector&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;&lt;span class="n"&gt;C&lt;/span&gt; &lt;span class="n"&gt;Thin&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="n"&gt;beta&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="n"&gt;I&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="n"&gt;IV&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="n"&gt;II&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="n"&gt;T&lt;/span&gt; &lt;span class="n"&gt;M&lt;/span&gt; &lt;span class="n"&gt;J&lt;/span&gt; &lt;span class="n"&gt;F&lt;/span&gt;&lt;span class="o"&gt;),&lt;/span&gt; &lt;span class="n"&gt;Plugboard&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;L&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;X&lt;/span&gt;&lt;span class="sr"&gt;/A-C/&lt;/span&gt;&lt;span class="n"&gt;B&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="n"&gt;Y&lt;/span&gt;
+
+&lt;span class="n"&gt;TMCTF&lt;/span&gt;&lt;span class="o"&gt;{&lt;/span&gt;&lt;span class="n"&gt;APZTQQHYCKDLQZRG&lt;/span&gt;&lt;span class="o"&gt;}&lt;/span&gt;
+
+&lt;span class="n"&gt;APZTQQHYCKDLQZRG&lt;/span&gt; &lt;span class="k"&gt;is&lt;/span&gt; &lt;span class="n"&gt;encrypted&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;The cipher is encrypted by &lt;code&gt;enigma&lt;/code&gt;, but the website contained the encrypted key. Thus, we can decrypt the cipher easily.&lt;br&gt;
+I use &lt;a href="http://summersidemakerspace.ca/projects/enigma-machine/"&gt;this&lt;/a&gt; to encrypt and get the real flag.&lt;br&gt;
+The flag is: &lt;code&gt;TMCTF{RISINGSUNANDMOON}&lt;/code&gt;  &lt;/p&gt;
+&lt;h3&gt;Analysis-Offensive 200&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;cracktheflag.exe&lt;/code&gt; is a simple passcode validator which received a number and judge if the number is a valid passcode.&lt;br&gt;
+Surprisingly, this challege can be solved without any guessing.  &lt;/p&gt;
+&lt;p&gt;The condition of the valid passcode is as below:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;x1 = passcode / 10000 % 100
+x2 = passcode / 100 % 100
+x3 = passcode % 100
+
+1. len(passcode) == 6 
+2. `passcode` is primes
+3. x1 is primes
+4. x2 is primes
+5. (x3 * x3 ^ x1) &amp;gt;&amp;gt; 8 == 0
+6 sum(ascii(d) for d in passcode) - 288 is primes
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;At first, I tried to solve it with &lt;strong&gt;z3&lt;/strong&gt;. However, it will spend a lot of time when checking prime. I decided to write a script to filter all possible solutions.&lt;br&gt;
+We can list all of the primes which satisified condition 1 and 2, then filter them with condition 3 to 6.&lt;br&gt;
+I found 7 solutions to satisify all conditions, and the biggest one is &lt;code&gt;236749&lt;/code&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;20509&lt;/li&gt;
+&lt;li&gt;24109&lt;/li&gt;
+&lt;li&gt;24709&lt;/li&gt;
+&lt;li&gt;25309&lt;/li&gt;
+&lt;li&gt;234149&lt;/li&gt;
+&lt;li&gt;234749&lt;/li&gt;
+&lt;li&gt;236749&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The program description said there are 8 possible solutions. I have no idea where is wrong.&lt;br&gt;
+Anyway, the biggest passcode is the same.  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;TMCTF{236749}&lt;/code&gt;  &lt;/p&gt;
+&lt;h3&gt;Forensic 100&lt;/h3&gt;
+&lt;p&gt;The pcap is a DNS traffic. According the description, there are some messages hidden in the traffic. The hostnames are very suspicious because the last one is shorter than others. I concated them and decode it with base64, but getting nothing. I stuck in this stage until organizers posted a hint which said the cipher is &lt;code&gt;base&lt;/code&gt; but not &lt;code&gt;base64&lt;/code&gt;.&lt;br&gt;
+I tried to decode with familiar base familiy blindly, such as &lt;code&gt;base128&lt;/code&gt;, &lt;code&gt;base32&lt;/code&gt;. Obviously, it's wrong. Our teammate &lt;strong&gt;jeffxx&lt;/strong&gt; found only 58 charcaters appeared in the cipher, then I tried &lt;code&gt;base58&lt;/code&gt; and success to decode the cipher. The plaintext is an article and the flag is at the end.   &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;TMCTF{DNSTunnelExfil}&lt;/code&gt;&lt;/p&gt;
+&lt;h3&gt;MISC 100&lt;/h3&gt;
+&lt;p&gt;I could not analyze the pcap with &lt;em&gt;wireshark&lt;/em&gt; at first because the header was corruption. However, I saw there are some strings begin with &lt;code&gt;CLIENT_RANDOM&lt;/code&gt; in the pcap. After googled, I known &lt;code&gt;CLIENT_RANDOM&lt;/code&gt; is encrypted keys used in HTTP2 traffic. Thus, I tried to repair the pcap. &lt;code&gt;file&lt;/code&gt; command said the pcap file is big-endien, but I compared with the other pacp file and found only the order of first 4 bytes is wrong. After fixed it, &lt;strong&gt;wireshark&lt;/strong&gt; could open the pcap normally and I could dump the object in HTTP2 traffic manually. I'm not sure if the latest wireshark support to dump HTTP2 object.  &lt;/p&gt;
+&lt;p&gt;The traffic is someone access a website about &lt;strong&gt;visual cryptgraphy&lt;/strong&gt;. There are some pictures hidden in traffic and css. I stack at here then my teammate &lt;strong&gt;atdog&lt;/strong&gt; found a methond to overlap the iamges and get the flag. &amp;lt;(_ _)&amp;gt;.  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;TMCTF{CanYouSeeThis?}&lt;/code&gt;&lt;/p&gt;</content><category term="Engima"></category><category term="Wireshark"></category><category term="Frequency Analysis"></category><category term="Other CTF"></category></entry></feed>

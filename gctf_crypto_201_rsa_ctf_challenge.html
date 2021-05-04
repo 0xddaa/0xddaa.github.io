@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html lang="zh-tw" class="no-js lt-ie9 lt-ie8 lt-ie7" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 7]>         <html lang="zh-tw" class="no-js lt-ie9 lt-ie8" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if IE 8]>         <html lang="zh-tw" class="no-js lt-ie9" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <![endif]-->
+<!--[if gt IE 8]><!--> <html lang="zh-tw" class="no-js" prefix="og: http://ogp.me/ns#" itemscope itemtype="http://schema.org/BlogPosting"> <!--<![endif]-->
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Google CTF 2017 Crypto 201 RSA CTF Challenge</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="這題沒有解出來...不過學到很多關於 PKCS#1 v1.5 的攻擊方式 還是厚著臉皮寫了一篇 write up PKCS#1 v1.5 是 RSA 的一種實際應用方式，詳細內容可以參考 RFC 23131 目的是將訊息 padding 後構造成數位簽章或數位信封使用的格式，大概會長得這樣： EB: Encryption block BT: Block type, 00, 01, 02 PS: Padding string D: Data EB = 00 || BT || PS || 00 || D 本題是要找出是簽署 challenge 這個字串的 signature 因此接下來只看 …">
+<link rel="shortcut icon" href="./images/favicon.ico" type="">
+<meta name="author" content="ddaa">
+<meta name="copyright" content="ddaa">
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:site" content="@" />
+<meta property="og:site_name" content="ddaa's blog" />
+
+<meta property="og:title" content="Google ctf 2017 crypto 201 rsa ctf challenge" />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="./gctf_crypto_201_rsa_ctf_challenge.html" />
+<meta name="twitter:title" content="Google ctf 2017 crypto 201 rsa ctf challenge" />
+<meta name="twitter:url" content="./gctf_crypto_201_rsa_ctf_challenge.html" />
+<meta itemprop="url" content="./gctf_crypto_201_rsa_ctf_challenge.html" />
+<meta property="og:description" content="這題沒有解出來...不過學到很多關於 PKCS#1 v1.5 的攻擊方式 還是厚著臉皮寫了一篇 write up PKCS#1 v1.5 是 RSA 的一種實際應用方式，詳細內容可以參考 RFC 23131 目的是將訊息 padding 後構造成數位簽章或數位信封使用的格式，大概會長得這樣： EB: Encryption block BT: Block type, 00, 01, 02 PS: Padding string D: Data EB = 00 || BT || PS || 00 || D 本題是要找出是簽署 challenge 這個字串的 signature 因此接下來只看 …" />
+<meta name="twitter:description" content="這題沒有解出來...不過學到很多關於 PKCS#1 v1.5 的攻擊方式 還是厚著臉皮寫了一篇 write up PKCS#1 v1.5 是 RSA 的一種實際應用方式，詳細內容可以參考 RFC 23131 目的是將訊息 padding 後構造成數位簽章或數位信封使用的格式，大概會長得這樣： EB: Encryption block BT: Block type, 00, 01, 02 PS: Padding string D: Data EB = 00 || BT || PS || 00 || D 本題是要找出是簽署 challenge 這個字串的 signature 因此接下來只看 …" />
+<meta property="og:article:published_time" content="2017-06-26" />
+<meta property="og:article:author" content="ddaa" >
+<meta property="og:article:tag" content="PKCS#1 v1.5">
+<meta property="og:article:tag" content="RSA">
+<meta property="og:article:tag" content="CVE">
+<meta property="og:article:tag" content="Google CTF">
+<meta property="og:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta property="og:image:type" content="" />
+<meta name="twitter:image" content="https://ddaa.tw/images/avatar.jpg" />
+<meta itemprop="image" content="https://ddaa.tw/images/avatar.jpg" />
+
+<link href="./feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="ddaa's blog ATOM Feed"/>
+<link href='//fonts.googleapis.com/css?family=Open+Sans:800italic' rel='stylesheet' type='text/css'>
+<link href='//fonts.googleapis.com/css?family=Oswald' rel='stylesheet' type='text/css'>
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/uikit.min.css">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/css/components/search.min.css">
+<link rel="stylesheet" href="/theme/css/tipuesearch.css">
+<link rel="stylesheet" href="/theme/css/solarized.css">
+<link rel="stylesheet" href="/theme/css/main.css">
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.2/html5shiv.min.js"></script>
+</head>
+<body>
+<!--[if lt IE 7]>
+            <p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
+        <![endif]-->
+
+<header class=" mg-header uk-navbar uk-navbar-attached">
+
+    <div class="uk-container uk-container-center">
+        <div class="uk-grid" data-uk-grid-margin>
+
+            <a class="mg-brand uk-navbar-brand uk-hidden-small" href="."><i class="uk-icon-flag"></i> ddaa's blog</a>
+            <div class="mg-tagline uk-navbar-content uk-hidden-small">Write-ups for CTF.</div>
+            <a class="uk-navbar-toggle uk-visible-small" href="#mg-offcanvas" data-uk-offcanvas></a>
+            <a class="mg-brand uk-navbar-brand uk-navbar-center uk-visible-small" href=".">ddaa's blog</a>
+
+        </div>
+    </div>
+</header>
+
+<main class="mg-main">
+
+<div class="uk-container uk-container-center">
+
+    <div class="uk-grid" data-uk-grid-margin>
+        
+<div class="mg-container-social uk-width-medium-1-10 uk-hidden-small">
+
+    <div class="uk-panel" id="mg-panel-social">
+        <ul class="uk-nav uk-nav-side">
+            <li>
+            <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/gctf_crypto_201_rsa_ctf_challenge.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button"><i class="uk-icon-facebook-square"></i> Share</a>
+            </li>
+            <li>
+            <a href="https://twitter.com/intent/tweet?text=Google%20CTF%202017%20Crypto%20201%20RSA%20CTF%20Challenge&url=https://ddaa.tw/gctf_crypto_201_rsa_ctf_challenge.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+            </li>
+            <li>
+            <a href="https://plus.google.com/share?url=https://ddaa.tw/gctf_crypto_201_rsa_ctf_challenge.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button"><i class="uk-icon-google-plus-square"></i> Share</a>
+            </li>
+        </ul>
+    </div>
+
+</div>
+
+<div class="uk-width-medium-7-10">
+
+    <article class="uk-article">
+        <h1 class="uk-heading-large uk-article-title" itemprop="name">Google CTF 2017 Crypto 201 RSA CTF Challenge</h1>
+        <p class="uk-article-meta"><time datetime="2017-06-26" itemprop="datePublished">Mon, 26 June 2017</time> in <a href="./category/crypto.html">crypto</a>, <br class="uk-visible-small"><i class="uk-icon-comment"></i> <a href="./gctf_crypto_201_rsa_ctf_challenge.html#disqus_thread" itemprop="discussionUrl"></a></p>
+<p class="uk-tag"><i class="uk-icon-tags"></i> <a href="./tag/pkcs1-v15.html">PKCS#1 v1.5</a> , <a href="./tag/rsa.html">RSA</a> , <a href="./tag/cve.html">CVE</a> , <a href="./tag/google-ctf.html">Google CTF</a> </p>
+        <a href="https://www.facebook.com/sharer/sharer.php?u=https://ddaa.tw/gctf_crypto_201_rsa_ctf_challenge.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=300,width=600');return false;" taget="_blank" class="uk-button uk-visible-small"><i class="uk-icon-facebook-square"></i> Share</a>
+        <a href="https://twitter.com/intent/tweet?text=Google%20CTF%202017%20Crypto%20201%20RSA%20CTF%20Challenge&url=https://ddaa.tw/gctf_crypto_201_rsa_ctf_challenge.html&via=" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" class="uk-button uk-visible-small" target="_blank"><i class="uk-icon-twitter"></i> Tweet</a>
+        <a href="https://plus.google.com/share?url=https://ddaa.tw/gctf_crypto_201_rsa_ctf_challenge.html" onclick="javascript:window.open(this.href,'', 'menubar=no,toolbar=no,resizable=yes,scrollbars=yes,height=600,width=600');return false;" target="_blank" class="uk-button uk-visible-small"><i class="uk-icon-google-plus-square"></i> Share</a>
+
+        <section itemprop="articleBody"><p>這題沒有解出來...不過學到很多關於 <strong>PKCS#1 v1.5</strong> 的攻擊方式<br>
+還是厚著臉皮寫了一篇 write up  </p>
+<hr>
+<p>PKCS#1 v1.5 是 RSA 的一種實際應用方式，詳細內容可以參考 RFC 2313<sup id="fnref-rfc2313"><a class="footnote-ref" href="#fn-rfc2313">1</a></sup><br>
+目的是將訊息 padding 後構造成數位簽章或數位信封使用的格式，大概會長得這樣：</p>
+<div class="highlight"><pre><span></span><span class="n">EB</span><span class="o">:</span> <span class="n">Encryption</span> <span class="n">block</span> 
+<span class="n">BT</span><span class="o">:</span> <span class="n">Block</span> <span class="n">type</span><span class="o">,</span> <span class="mi">00</span><span class="o">,</span> <span class="mi">01</span><span class="o">,</span> <span class="mi">02</span>
+<span class="n">PS</span><span class="o">:</span> <span class="n">Padding</span> <span class="n">string</span>
+<span class="n">D</span><span class="o">:</span>  <span class="n">Data</span>
+
+<span class="n">EB</span> <span class="o">=</span> <span class="mi">00</span> <span class="o">||</span> <span class="n">BT</span> <span class="o">||</span> <span class="n">PS</span> <span class="o">||</span> <span class="mi">00</span> <span class="o">||</span> <span class="n">D</span>
+</pre></div>
+
+
+<p>本題是要找出是簽署 <code>challenge</code> 這個字串的 signature <br>
+因此接下來只看 BT = 01 的情況<br>
+簽署 signature PS 會是 n 個 ff<br>
+Data 會由兩部分組成，分別是 <code>ASN.1</code><sup id="fnref-asn1"><a class="footnote-ref" href="#fn-asn1">2</a></sup> 和 <code>hash(m)</code><br>
+<code>ASN.1</code> 取決於後面用哪一種 hash 演算法<br>
+可以把他想像成 hash 演算法的特徵碼  </p>
+<p>PKCS#1 v1.5 本身沒有問題<br>
+但是在兩個條件存在時，可以任意偽造任意訊息的 signature  </p>
+<ol>
+<li>RSA 產生 key pair 時使用了過小的 e (exponent)</li>
+<li>用了不正確的方式解析 signature</li>
+</ol>
+<p>RSA 的加密方式是 <code>c = m ** e % N</code><br>
+如果 e 太小，導致 <code>m ** e &lt; N</code> 成立，解密就可以化簡成:</p>
+<div class="highlight"><pre><span></span>已知 m、N、e，求 c 的 e 次方根  
+</pre></div>
+
+
+<p>對 PKCS#1 v1.5 而言也有類似的問題，由於格式固定<br>
+如果知道 public key 的長度和 message，我們可以推出 RSA 加密後的 signature 會是：  </p>
+<div class="highlight"><pre><span></span>EB = 0001 + ff * n + 00 + ASN.1 + hash(m)
+</pre></div>
+
+
+<p>n 取決於 public key 的長度，假設長度是 1024，就要 padding 91 個 ff<br>
+如果 e 太小而且<code>EB</code> 剛好是 e 次方數，signature 就是 <code>EB</code> 開 e 次方根<br>
+(不太確定在正確 padding 的情況下，<code>EB</code> 是不是不可能會是 e 次方數)  </p>
+<p>本題在原始碼中附上了 public key<br>
+N = 1024 bit，e = 3<br>
+想當然，這題的 <code>EB</code> 不是一個立方數 XD<br>
+因此還需要條件 2 才有辦法成功偽造 <code>challenge</code> 的 signature  </p>
+<p>關於 PKCS#1 v1.5 的攻擊最早由 <strong>Bleichenbacher</strong> 提出<sup id="fnref-Bleichenbacher"><a class="footnote-ref" href="#fn-Bleichenbacher">3</a></sup> (疑似是這題的出題者)<br>
+其中一種方式是 <strong>Chosen Cipher Attacks</strong><br>
+後來有人把各種因為實作上的缺陷而產生的攻擊方式整理成一篇論文<sup id="fnref-sigflaw"><a class="footnote-ref" href="#fn-sigflaw">4</a></sup>  </p>
+<p>由於本題沒有給 server 端的 source code<br>
+因此我們不曉得條件 2 是因為如何實作而導致的<br>
+準確地說，我們甚至不能確定條件 2 是否存在<br>
+因此只能靠猜測的方式，亂送各種因為實作上缺陷而可以偽造的 signature 給 server  </p>
+<p>以下是可能的幾種實作缺陷：</p>
+<h3>1. Bleichenbacher’s Low-Exponent Attack</h3>
+<p>此方式是最早提出的攻擊手段<br>
+原因是實作時沒有驗證是否有額外的資料在 <code>hash(m)</code> 之後<br>
+假設題目是此種實作缺陷，可以送這種格式讓 server 解密：<br>
+<code>0001 + ff*91 + 00 + ASN.1 + hash(m) + evil</code><br>
+由於 evil 是在放在 payload 的最後，有很大的機率可以將 payload 補成一個立方數<br>
+不過此題不是這種實作缺陷<br>
+這種攻擊方式要在 key 長度在 3072 以上才保證一定成功<br>
+1024 會有無法成功補成立方數的可能  </p>
+<h3>2. Variants for Smaller RSA Moduli</h3>
+<p>此方式是因為沒有正確檢查 <code>EB</code> 的長度<br>
+由於 <code>ASN.1</code> 長度不固定的原因<br>
+有些實作方式不會正確檢查 ff 的個數<br>
+只檢查總長度為 8 的倍數<br>
+因此我們有機會透過調整 ff 的個數把 payload 控制成一個立方數<br>
+不過這題也不是考這種利用方式<br>
+試了一下在此題結尾必須是 <code>md5("challenge")</code> 的情況下<br>
+不管怎麼刪減都沒辦法做出有效的 payload  </p>
+<h3>3. Exploiting the Algorithm Parameters Field</h3>
+<p>最早被提出是在 CVE-2006-4339<sup id="fnref-cve-2006-4339"><a class="footnote-ref" href="#fn-cve-2006-4339">5</a></sup>，GnuTLS 的實作缺陷<br>
+GnuTLS 在某段程式碼中假設傳進來的 payload 一定是用 md5 做 hash 的 <code>EB</code><br>
+完全沒有檢查 <code>ASN.1</code> 的內容是否正確<br>
+因此可以透過調整 <code>ASN.1</code> 欄位的內容讓 EB 變成一個立方數<br>
+論文中衍伸了 CVE-2006-4339 提到的攻擊手法<br>
+並將條件改成有分段檢查 <code>ASN.1</code> 的欄位<br>
+問題變成可以用不同的 hash 算法混淆判斷來製造立方數<br>
+這題我嘗試了 <code>CVE-2006-4339</code> 的實作缺陷，也不成功<br>
+論文提到的衍伸方式利用條件太嚴謹了，看起來這題就做不到 XD  </p>
+<h3>4. Attack Variant against the Netscape Security Services</h3>
+<p>這個實作缺陷最早是發現在 NSS 的原始碼<br>
+原因跟 2. 有點類似，但是變成完全不檢查 ff<br>
+由於 PKCS#1 v1.5 是向右對齊<br>
+NSS 的實作方式從右邊檢查完 <code>hash(m)</code>、<code>ASN.1</code> 以後<br>
+就檢查是否用 <code>00</code> 分隔和 <code>0001</code> 結尾<br>
+因此可以送以下格式的 payload 來偽造：<br>
+<code>0001 + 00 + evil + hash(m)</code><br>
+<strong>python-rsa</strong> 也有發生過類似的問題 CVE-2016-1494<sup id="fnref-cve-2016-1494"><a class="footnote-ref" href="#fn-cve-2016-1494">6</a></sup><br>
+差別是有多檢查 <code>ASN.1</code>，因此要改成送這樣的格式：<br>
+<code>0001 + 00 + evil + ASN.1 + hash(m)</code>  </p>
+<p>本題考的是 CVE-2016-1494<br>
+比賽中我也有嘗試這種做法...不過我是拿別人的 code 來改的
+不確定是原本就寫錯了，還是我改壞了<br>
+我沒辦法在 message 是 <code>challenge</code> 的情況找出一組成功的解 Orz<br>
+我就以為不是考這個了...<br>
+比賽完自己重寫一遍，就有成功解出 flag 了 = =  </p>
+<p>在實作時有很重要的一點是，由於數字很大<br>
+基本上不可能一個一個數字去試是不是立方數<br>
+要透過 bit 枚舉的方式快速找出後綴符合 <code>ASN.1 + hash(m)</code> 的數字<br>
+然後用二分法找前綴符合 <code>000100</code> 開頭的數字<br>
+就可以解出 flag 了<br>
+解完後往 server 送，server 就會吐 flag 在網頁上了  </p>
+<p>flag: <code>CTF{zx2fn265ll7}</code></p>
+<div class="footnote">
+<hr>
+<ol>
+<li id="fn-rfc2313">
+<p>PKCS #1: RSA Encryption, <a href="https://tools.ietf.org/html/rfc2313">https://tools.ietf.org/html/rfc2313</a>&#160;<a class="footnote-backref" href="#fnref-rfc2313" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+<li id="fn-asn1">
+<p>Abstract Syntax Notation One，定義於 X.208&#160;<a class="footnote-backref" href="#fnref-asn1" title="Jump back to footnote 2 in the text">&#8617;</a></p>
+</li>
+<li id="fn-Bleichenbacher">
+<p><a href="http://archiv.infsec.ethz.ch/education/fs08/secsem/bleichenbacher98.pdf">http://archiv.infsec.ethz.ch/education/fs08/secsem/bleichenbacher98.pdf</a>&#160;<a class="footnote-backref" href="#fnref-Bleichenbacher" title="Jump back to footnote 3 in the text">&#8617;</a></p>
+</li>
+<li id="fn-sigflaw">
+<p><a href="https://www.cdc.informatik.tu-darmstadt.de/reports/reports/sigflaw.pdf">https://www.cdc.informatik.tu-darmstadt.de/reports/reports/sigflaw.pdf</a>&#160;<a class="footnote-backref" href="#fnref-sigflaw" title="Jump back to footnote 4 in the text">&#8617;</a></p>
+</li>
+<li id="fn-cve-2006-4339">
+<p><a href="https://lists.gnupg.org/pipermail/gnutls-dev/2006-September/001240.html">https://lists.gnupg.org/pipermail/gnutls-dev/2006-September/001240.html</a>&#160;<a class="footnote-backref" href="#fnref-cve-2006-4339" title="Jump back to footnote 5 in the text">&#8617;</a></p>
+</li>
+<li id="fn-cve-2016-1494">
+<p><a href="https://blog.filippo.io/bleichenbacher-06-signature-forgery-in-python-rsa/">https://blog.filippo.io/bleichenbacher-06-signature-forgery-in-python-rsa/</a>&#160;<a class="footnote-backref" href="#fnref-cve-2016-1494" title="Jump back to footnote 6 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div></section>
+        <hr class="uk-article-divider">
+    </article>
+
+    <div id="disqus_thread"></div>
+    <script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+     var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+     dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+     (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+     })();
+    </script>
+    <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+    <a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+</div>
+ 
+    
+        <div class="uk-width-medium-1-5 uk-hidden-small">
+            
+<!--
+            <div class="uk-panel uk-panel-box">
+                <form class="uk-search" action="search.html" data-uk-search>
+                    <input class="uk-search-field tipue_search" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+                </form>
+            </div>
+-->
+            <div class="uk-panel">
+                <div class="uk-button-dropdown" data-uk-dropdown>
+                    <button class="uk-button uk-button-danger"><i class="uk-icon-tags"></i>&nbsp;Tags</button>
+                    <div class="uk-dropdown">
+                        <ul class="uk-nav uk-nav-dropdown">
+                            <li class="uk-nav-header">CTF</li>
+                            <li><a href="./tag/0ctf.html">0CTF</a></li>
+                            <li><a href="./tag/3xc3ctf.html">3XC3CTF</a></li>
+                            <li><a href="./tag/bkpctf.html">BKPCTF</a></li>
+                            <li><a href="./tag/codegate-ctf.html">Codegate CTF</a></li>
+                            <li><a href="./tag/csawctf.html">CSAWCTF</a></li>
+                            <li><a href="./tag/def-con-ctf.html">DEF CON CTF</a></li>
+                            <li><a href="./tag/google-ctf.html">Google CTF</a></li>
+                            <li><a href="./tag/hitcon-ctf.html">HITCON CTF</a></li>
+                            <li><a href="./tag/other-ctf.html">Other CTF</a></li>
+                            <li><a href="./tag/plaidctf.html">PlaidCTF</a></li>
+                            <li><a href="./tag/seccon-ctf.html">SECCON CTF</a></li>
+                            <li><a href="./tag/xctf.html">XCTF</a></li>
+                            <li class="uk-nav-header">skill</li>
+                            <li><a href="./tag/armv8.html">ARMv8</a></li>
+                            <li><a href="./tag/bash.html">Bash</a></li>
+                            <li><a href="./tag/cmd-injection.html">CMD Injection</a></li>
+                            <li><a href="./tag/collision.html">Collision</a></li>
+                            <li><a href="./tag/crlf.html">CRLF</a></li>
+                            <li><a href="./tag/cve.html">CVE</a></li>
+                            <li><a href="./tag/dl_resolve.html">dl_resolve</a></li>
+                            <li><a href="./tag/engima.html">Engima</a></li>
+                            <li><a href="./tag/feistel-cipher.html">Feistel Cipher</a></li>
+                            <li><a href="./tag/format-string.html">Format String</a></li>
+                            <li><a href="./tag/frequency-analysis.html">Frequency Analysis</a></li>
+                            <li><a href="./tag/heap-overflow.html">Heap Overflow</a></li>
+                            <li><a href="./tag/jailbreak.html">Jailbreak</a></li>
+                            <li><a href="./tag/length-extension-attack.html">Length Extension Attack</a></li>
+                            <li><a href="./tag/lfi.html">LFI</a></li>
+                            <li><a href="./tag/linux-kernel.html">Linux kernel</a></li>
+                            <li><a href="./tag/mitm.html">MITM</a></li>
+                            <li><a href="./tag/off-by-one.html">Off-by-one</a></li>
+                            <li><a href="./tag/out-of-bound.html">Out-of-bound</a></li>
+                            <li><a href="./tag/pkcs1-v15.html">PKCS#1 v1.5</a></li>
+                            <li><a href="./tag/prng.html">PRNG</a></li>
+                            <li><a href="./tag/race-condition.html">Race Condition</a></li>
+                            <li><a href="./tag/rsa.html">RSA</a></li>
+                            <li><a href="./tag/shellcode.html">Shellcode</a></li>
+                            <li><a href="./tag/sql-injection.html">SQL Injection</a></li>
+                            <li><a href="./tag/stack-overflow.html">Stack Overflow</a></li>
+                            <li><a href="./tag/substitution-cipher.html">Substitution Cipher</a></li>
+                            <li><a href="./tag/trick.html">Trick</a></li>
+                            <li><a href="./tag/uninitialized.html">Uninitialized</a></li>
+                            <li><a href="./tag/vm-executable.html">VM Executable</a></li>
+                            <li><a href="./tag/wireshark.html">Wireshark</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="uk-panel uk-panel-box">
+                <ul class="uk-nav uk-nav-side">
+                    <li class="uk-nav-header">Categories</li>
+                    <li class="uk-active"><a href="./category/crypto.html">crypto</a></li>
+                    <li ><a href="./category/forensic.html">forensic</a></li>
+                    <li ><a href="./category/misc.html">misc</a></li>
+                    <li ><a href="./category/other.html">other</a></li>
+                    <li ><a href="./category/pwn.html">pwn</a></li>
+                    <li ><a href="./category/reverse.html">reverse</a></li>
+                    <li ><a href="./category/web.html">web</a></li>
+
+                    <li class="uk-nav-header">Pages</li>
+                    
+                    
+
+                    <li class="uk-nav-divider"></li>
+                    <li ><a href="./archives.html">Archives</a></li>
+                </ul>
+            </div>
+
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Receive Updates</h3>
+                <a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="mg-feed"><i class="uk-icon-rss uk-icon-medium"></i> ATOM</a>
+            </div>
+            
+            <div class="uk-panel uk-panel-box">
+                <h3 class="uk-panel-title">Contacts</h3>
+                <a class="mg-icon-link" href="http://www.facebook.com/0xddaa">
+                    <i class="uk-icon-facebook-square uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://github.com/0xddaa">
+                    <i class="uk-icon-github uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="https://twitter.com/0xddaa">
+                    <i class="uk-icon-twitter uk-icon-medium"></i>
+                </a>
+                <a class="mg-icon-link" href="mailto:0xddaa@gmail.com">
+                    <i class="uk-icon-envelope-o uk-icon-medium"></i>
+                </a>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</main>
+
+<footer class="mg-footer">
+    <div class="uk-container uk-container-center uk-text-center">
+
+        <div class="mg-icons-small uk-subnav uk-visible-small">
+            <li><a rel="alternate" type="application/atom+xml" href="./feeds/all.atom.xml" class="uk-icon-button uk-icon-rss"></a></li>
+            <li>
+                <a href="http://www.facebook.com/0xddaa" class="uk-icon-button uk-icon-facebook"></a>
+            </li>
+            <li>
+                <a href="https://github.com/0xddaa" class="uk-icon-button uk-icon-github"></a>
+            </li>
+            <li>
+                <a href="https://twitter.com/0xddaa" class="uk-icon-button uk-icon-twitter"></a>
+            </li>
+            <li>
+                <a href="mailto:0xddaa@gmail.com" class="uk-icon-button uk-icon-envelope-o"></a>
+            </li>
+        </div>
+
+        <div class="mg-author uk-panel">
+            <p>&copy; 2021 <a href="mailto:0xddaa@gmail.com">ddaa</a>. All rights reserved.<br></p>
+
+            <p>Powered by <a href="http://blog.getpelican.com">Pelican</a>.<br class="uk-visible-small"> Theme <a href="https://github.com/lucachr/pelican-mg">mg</a> by <a href="https://github.com/lucachr">Luca Chiricozzi</a>.</p>
+        </div>
+    </div> 
+</footer>
+
+<div id="mg-offcanvas" class="uk-offcanvas">
+    <div class="uk-offcanvas-bar">
+
+        <!--
+        <form class="uk-search" action="search.html" data-uk-search>
+            <input class="uk-search-field" type="search" name="q" id="tipue_search_input" autocomplete="off" placeholder="Search...">
+        </form>
+        -->
+
+        <ul class="uk-nav uk-nav-offcanvas" data-uk-nav>
+            <li class="uk-nav-header">Categories</li>
+            <li class="uk-active"><a href="./category/crypto.html">crypto</a></li>
+            <li ><a href="./category/forensic.html">forensic</a></li>
+            <li ><a href="./category/misc.html">misc</a></li>
+            <li ><a href="./category/other.html">other</a></li>
+            <li ><a href="./category/pwn.html">pwn</a></li>
+            <li ><a href="./category/reverse.html">reverse</a></li>
+            <li ><a href="./category/web.html">web</a></li>
+            <li class="uk-nav-header">Pages</li>        
+                    
+
+            <li class="uk-nav-divider"></li>
+            <li><a href="./">Archives</a></li>
+        </ul>
+    </div>
+</div>
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script>window.jQuery || document.write('<script src="js/vendor/jquery-1.10.2.min.js"><\/script>')</script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/uikit.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/uikit/2.15.0/js/components/search.min.js"></script>
+<script src="/theme/js/jquery.sticky-kit.js"></script>
+<script src="/theme/js/tipuesearch_set.js"></script>
+<script src="/theme/js/tipuesearch.js"></script>
+<script src="/theme/js/plugins.js"></script>
+<script src="/theme/js/main.js"></script>
+
+<script type="text/javascript">
+/* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+var disqus_shortname = 'ddaactf'; // required: replace example with your forum shortname
+
+/* * * DON'T EDIT BELOW THIS LINE * * */
+(function () {
+ var s = document.createElement('script'); s.async = true;
+ s.type = 'text/javascript';
+ s.src = '//' + disqus_shortname + '.disqus.com/count.js';
+ (document.getElementsByTagName('HEAD')[0] || document.getElementsByTagName('BODY')[0]).appendChild(s);
+ }());
+</script>
+
+
+</body>
+</html>
