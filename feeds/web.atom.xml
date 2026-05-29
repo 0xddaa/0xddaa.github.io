@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>ddaa's blog - web</title><link href="https://ddaa.tw/" rel="alternate"></link><link href="https://ddaa.tw/feeds/web.atom.xml" rel="self"></link><id>https://ddaa.tw/</id><updated>2017-02-13T11:34:00+08:00</updated><entry><title>Codegate CTF 2017 prequals web+pwn 435 PNGParser</title><link href="https://ddaa.tw/codegate_web+pwn_435_pngparser.html" rel="alternate"></link><published>2017-02-13T11:34:00+08:00</published><updated>2017-02-13T11:34:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2017-02-13:/codegate_web+pwn_435_pngparser.html</id><summary type="html">&lt;p&gt;The challenges is more interesting than last year.&lt;br&gt;
+However, why held the CTF on Friday? :(  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The problem description provided some website links for us. All of them are the same.&lt;br&gt;
+There are two tags on the website. One of them is named &lt;code&gt;FILE UPLOAD&lt;/code&gt;, Another one is named &lt;code&gt;INTERNET&lt;/code&gt;.&lt;br&gt;
+We …&lt;/p&gt;</summary><content type="html">&lt;p&gt;The challenges is more interesting than last year.&lt;br&gt;
+However, why held the CTF on Friday? :(  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The problem description provided some website links for us. All of them are the same.&lt;br&gt;
+There are two tags on the website. One of them is named &lt;code&gt;FILE UPLOAD&lt;/code&gt;, Another one is named &lt;code&gt;INTERNET&lt;/code&gt;.&lt;br&gt;
+We could upload a PNG file from local or through internet.&lt;br&gt;
+My teammate, &lt;strong&gt;jeffxx&lt;/strong&gt; found there is a LFI vulnerability in &lt;code&gt;INTERNET&lt;/code&gt; page.&lt;br&gt;
+It can read any file after modified the protocol to &lt;code&gt;file://&lt;/code&gt;.&lt;br&gt;
+However, the flag doesn't located on the general path.&lt;br&gt;
+We could not read the flag directly, but we could download the source.&lt;br&gt;
+After reading source, we could find a elf file named &lt;code&gt;PNGParser&lt;/code&gt; will be executed when the website handled the uploaded PNG file.  &lt;/p&gt;
+&lt;p&gt;&lt;code&gt;PNGPareser&lt;/code&gt; must be executed with one argument &lt;code&gt;file_name&lt;/code&gt;.&lt;br&gt;
+It will parse the file and dump each entry in the file if the file is a legal PNG file.&lt;br&gt;
+I decided to fuzz the binary after openen it wit &lt;strong&gt;IDA Pro&lt;/strong&gt; because the parser is a little complicated.&lt;br&gt;
+Luckily, the binary crashed easily and the error message was:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;*** Error in `./pngparser': double free or corruption (out): 0x089f0598 ***&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Now, we knowed the crashed point at &lt;code&gt;0x089f0598&lt;/code&gt;, but why it crashed ?.&lt;br&gt;
+With the program slicing skill that I learned from Software Debugging, I found the fault is happened on &lt;code&gt;0x0804946d&lt;/code&gt;.&lt;br&gt;
+Heap overflow happened after the program called &lt;code&gt;memcpy()&lt;/code&gt; and the buffer that stored the PNG content overwrote the top chunk.&lt;br&gt;
+In order to understand what happened, we need to take a look on PNG stcucture before going on.  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="cm"&gt;/* Some members may not be exactly. Sorry for my indolence. */&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+struct&lt;span class="w"&gt; &lt;/span&gt;PNG&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="err"&gt;{&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;int&lt;span class="w"&gt; &lt;/span&gt;status&lt;span class="err"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;char&lt;span class="w"&gt; &lt;/span&gt;header&lt;span class="err"&gt;[&lt;/span&gt;&lt;span class="m"&gt;8&lt;/span&gt;&lt;span class="err"&gt;];&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;char&lt;span class="w"&gt; &lt;/span&gt;next&lt;span class="err"&gt;[&lt;/span&gt;&lt;span class="m"&gt;4&lt;/span&gt;&lt;span class="err"&gt;];&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;int&lt;span class="w"&gt; &lt;/span&gt;chunk_size&lt;span class="err"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;void&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;data_ptr&lt;span class="err"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;int&lt;span class="w"&gt; &lt;/span&gt;size1&lt;span class="err"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;int&lt;span class="w"&gt; &lt;/span&gt;size2&lt;span class="err"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;char&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;buf&lt;span class="err"&gt;;&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="w"&gt;  &lt;/span&gt;char&lt;span class="w"&gt; &lt;/span&gt;entry&lt;span class="err"&gt;[&lt;/span&gt;&lt;span class="m"&gt;80&lt;/span&gt;&lt;span class="err"&gt;];&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;span class="err"&gt;};&lt;/span&gt;&lt;span class="w"&gt;&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;And here is a piece of pseudocode nearby &lt;code&gt;memcpy()&lt;/code&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;int parse_png(PNG *png, char *buf, size_t len)
+{
+  ...
+  while ( i &amp;lt; len )
+  {
+    if ( len - i &amp;gt;= png-&amp;gt;s1 - png-&amp;gt;s2 )
+      v4 = png-&amp;gt;s1 - png-&amp;gt;s2;
+    else
+      v4 = 2000;
+    cmp_header(&amp;amp;png-&amp;gt;header[4], &amp;quot;PLTE&amp;quot;);
+    memcpy(&amp;amp;png-&amp;gt;buf[png-&amp;gt;s2], &amp;amp;buf[i], v4);
+    png-&amp;gt;s2 += v4;
+    i += v4;
+    if ( png-&amp;gt;s2 &amp;gt;= png-&amp;gt;s1 )
+    {
+      v5 = parse_entry(png);
+      if ( !v5 )
+        return 0;
+    }
+  }
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;code&gt;len&lt;/code&gt; is the return value of &lt;code&gt;fread()&lt;/code&gt; in main function. &lt;br&gt;
+Its maximum value is &lt;code&gt;0x10000&lt;/code&gt; because the third argument of &lt;code&gt;fread()&lt;/code&gt; is equal to 0x10000.&lt;br&gt;
+We can control the value of &lt;code&gt;len&lt;/code&gt; easily through cutting the PNG files.&lt;br&gt;
+&lt;code&gt;parse_png()&lt;/code&gt; will parse from the start entry (&lt;code&gt;png-&amp;gt;header&lt;/code&gt; == "\x89PDF\x0d\x0a\x1a\x0a") at first.&lt;br&gt;
+Next, calulate the offset of next entry and parse each by each until reach &lt;code&gt;IEND&lt;/code&gt; entry.&lt;br&gt;
+We can construct a PNG file, which has a entry that the real size is smaller than the size field.&lt;br&gt;
+And then, the condition &lt;code&gt;len - i &amp;gt;= png-&amp;gt;s1 - png-&amp;gt;s2&lt;/code&gt; will be satisfied and &lt;code&gt;v4&lt;/code&gt; will be set to 2000.&lt;br&gt;
+Overflow will happened because the size of &lt;code&gt;png-&amp;gt;buf&lt;/code&gt; is determined by &lt;code&gt;png-&amp;gt;chunk_size&lt;/code&gt;.  &lt;/p&gt;
+&lt;p&gt;Sounds great. However, we still need to overcome a little trouble.&lt;br&gt;
+First, each PNG entry has a crc field, so we cannot modify the PNG file directly.&lt;br&gt;
+We must calulate the correct crc checksum for each entry in PNG file after modified.&lt;br&gt;
+Second, &lt;code&gt;PNGParser&lt;/code&gt; is a non-interactive program, it means ASLR will become a knotty problem.&lt;br&gt;
+Most of heap exploitation skills need to know the memory layout.&lt;br&gt;
+In fact, I didn't think out a efficient method to exploit this challenge through heap exploitation.&lt;br&gt;
+However, at the same line, &lt;code&gt;memcpy()&lt;/code&gt; is possible to trigger stack overflow !  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;int parse_entry(PNG *a1)
+{
+...
+    case 0xD:
+LABEL_12:
+      a1-&amp;gt;status = 0xE;
+      a1-&amp;gt;s1 = 4;
+      a1-&amp;gt;s2 = 0;
+      a1-&amp;gt;buf = a1-&amp;gt;next;
+      goto LABEL_17;
+...
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;There is a switch case in &lt;code&gt;parse_entry()&lt;/code&gt;. Accoring to &lt;code&gt;png-&amp;gt;status&lt;/code&gt;, entry will be handle by different ways.&lt;br&gt;
+In the most case, &lt;code&gt;png-&amp;gt;buf&lt;/code&gt; will store the address of malloc buffer, except &lt;code&gt;png-&amp;gt;status&lt;/code&gt; is equal 0xd.&lt;br&gt;
+In this case, &lt;code&gt;png-&amp;gt;buf&lt;/code&gt; will point to the address of &lt;code&gt;png-&amp;gt;next&lt;/code&gt; and &lt;code&gt;png-&amp;gt;status&lt;/code&gt; become 0xe.&lt;br&gt;
+Let's see where is the varaible &lt;code&gt;png&lt;/code&gt; ... It is a local variable in &lt;code&gt;main()&lt;/code&gt;.&lt;br&gt;
+Thus, if the entry which status is equal to 0xe happened overflow, we can control the partial stack of &lt;code&gt;main()&lt;/code&gt;.   &lt;/p&gt;
+&lt;p&gt;It seems to be left to do the ROP and shell out ... Not yet! O__Q&lt;br&gt;
+Although we have overwriten the stack of &lt;code&gt;main()&lt;/code&gt;, but we cannot go well to reach &lt;code&gt;return&lt;/code&gt;.&lt;br&gt;
+The segmentation fault will still happen in &lt;code&gt;feof()&lt;/code&gt; because the file descriptor was overwritten.&lt;br&gt;
+We must forge a fake FILE structure to prevent the program crashed.&lt;br&gt;
+But, where can we forge the sturcture? Remember, we don't know the memory layout.&lt;br&gt;
+I stucked at here for a while, then I found &lt;code&gt;tEXt&lt;/code&gt; entry can help us!. &lt;br&gt;
+The content of &lt;code&gt;tEXt&lt;/code&gt; entry will be copy to the bss section whose address is &lt;code&gt;0x0804e4de&lt;/code&gt;.&lt;br&gt;
+Notice, null byte cannot appear in the &lt;code&gt;tEXt&lt;/code&gt; entry, so we cannot forge it completely.&lt;br&gt;
+Our goal is just that let &lt;code&gt;feof()&lt;/code&gt; return gracefully. Luckily, the binary is x86 architecutre.&lt;br&gt;
+Thus, we can reach the goal and forge the vtable in the FILE structure incidentally.&lt;br&gt;
+I made one of vtable function to &lt;code&gt;add esp, 0xd8&lt;/code&gt; and it will be used in &lt;code&gt;fread()&lt;/code&gt;.&lt;br&gt;
+After that, the control flow will enter our rop payload when executing &lt;code&gt;fread()&lt;/code&gt;.&lt;br&gt;
+Finally, we can do ROP easily and shell out! :)&lt;/p&gt;
+&lt;p&gt;exploit: &lt;a href="https://ddaa.tw/exp/pngparser.py"&gt;exp.py&lt;/a&gt;  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;FLAG{sh3_1s_b3t1fu1_#$%}&lt;/code&gt;&lt;/p&gt;</content><category term="Codegate CTF"></category><category term="Stack Overflow"></category><category term="LFI"></category></entry><entry><title>CSAW CTF 2015 web 500 Weebdate</title><link href="https://ddaa.tw/csawctf_web_500_weebdate.html" rel="alternate"></link><published>2015-09-22T00:24:00+08:00</published><updated>2015-09-22T00:24:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-09-22:/csawctf_web_500_weebdate.html</id><summary type="html">&lt;p&gt;這題能解出來要歸功於&lt;br&gt;
+&lt;strong&gt;ding&lt;/strong&gt;, &lt;strong&gt;happyholic1203&lt;/strong&gt;, &lt;strong&gt;mangoking&lt;/strong&gt;, &lt;strong&gt;jpeanut&lt;/strong&gt;&lt;br&gt;
+已經把前面的問題都找出了&lt;br&gt;
+我其實只是撿尾刀而已...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;不過還是厚著臉皮寫一下 write up&lt;br&gt;
+不然這邊 web 分類文章都空空蕩蕩...  &lt;/p&gt;
+&lt;p&gt;這題的背景故事是&lt;br&gt;
+有一個叫做 &lt;strong&gt;Donald Trump&lt;/strong&gt; 的傢伙在這個交友網站註冊了帳號&lt;br&gt;
+用來當作販毒的聯絡管道云云&lt;br&gt;
+需要破出他的二段式認證 (&lt;code&gt;password&lt;/code&gt; + &lt;code&gt;TOTPKEY&lt;/code&gt;) 登入他的帳號&lt;br&gt;
+這題的 &lt;code&gt;flag = md5(TOTPKEY + password)&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;這個交友網站除了一般的帳號密碼以外&lt;br&gt;
+還需要填入 oath 解 &lt;code&gt;TOTPKEY&lt;/code&gt; 的結果才能成功登入&lt;br&gt;
+可以用以下指令來解:&lt;br&gt;
+&lt;code&gt;oathtool --base32 --totp AAAAAAAAAAAA&lt;/code&gt;&lt;br&gt;
+得到的結果是一個 6 位數字&lt;br&gt;
+會隨時間改變, 所以要趕快登入 XDD&lt;br&gt;
+註冊的時候試了一下如果帳號前四碼相同&lt;br&gt;
+&lt;code&gt;TOTPKEY&lt;/code&gt; 得到的結果都一樣&lt;br&gt;
+一開始以為只要註冊前面開頭一樣的帳號&lt;br&gt;
+就可以拿到 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;這題能解出來要歸功於&lt;br&gt;
+&lt;strong&gt;ding&lt;/strong&gt;, &lt;strong&gt;happyholic1203&lt;/strong&gt;, &lt;strong&gt;mangoking&lt;/strong&gt;, &lt;strong&gt;jpeanut&lt;/strong&gt;&lt;br&gt;
+已經把前面的問題都找出了&lt;br&gt;
+我其實只是撿尾刀而已...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;不過還是厚著臉皮寫一下 write up&lt;br&gt;
+不然這邊 web 分類文章都空空蕩蕩...  &lt;/p&gt;
+&lt;p&gt;這題的背景故事是&lt;br&gt;
+有一個叫做 &lt;strong&gt;Donald Trump&lt;/strong&gt; 的傢伙在這個交友網站註冊了帳號&lt;br&gt;
+用來當作販毒的聯絡管道云云&lt;br&gt;
+需要破出他的二段式認證 (&lt;code&gt;password&lt;/code&gt; + &lt;code&gt;TOTPKEY&lt;/code&gt;) 登入他的帳號&lt;br&gt;
+這題的 &lt;code&gt;flag = md5(TOTPKEY + password)&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;這個交友網站除了一般的帳號密碼以外&lt;br&gt;
+還需要填入 oath 解 &lt;code&gt;TOTPKEY&lt;/code&gt; 的結果才能成功登入&lt;br&gt;
+可以用以下指令來解:&lt;br&gt;
+&lt;code&gt;oathtool --base32 --totp AAAAAAAAAAAA&lt;/code&gt;&lt;br&gt;
+得到的結果是一個 6 位數字&lt;br&gt;
+會隨時間改變, 所以要趕快登入 XDD&lt;br&gt;
+註冊的時候試了一下如果帳號前四碼相同&lt;br&gt;
+&lt;code&gt;TOTPKEY&lt;/code&gt; 得到的結果都一樣&lt;br&gt;
+一開始以為只要註冊前面開頭一樣的帳號&lt;br&gt;
+就可以拿到 &lt;code&gt;TOTPKEY&lt;/code&gt;了 (後來才發現事情沒這麼簡單 Orz)&lt;br&gt;
+所以把目標先鎖定在拿到 &lt;code&gt;password&lt;/code&gt;&lt;br&gt;
+登入之後有幾個功能:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Edit Profile&lt;/li&gt;
+&lt;li&gt;Search User&lt;/li&gt;
+&lt;li&gt;Send Message&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;...沒有登出, 想換帳號都要刪 cookie 超麻煩 = =&lt;br&gt;
+cookie 的格式是 &lt;code&gt;username_timestamp_sha1ofsomething&lt;/code&gt;&lt;br&gt;
+原本在猜後面的 sha1 可能跟密碼有關&lt;br&gt;
+打算試試看能不能偷到 &lt;strong&gt;Donald Trump&lt;/strong&gt; 的 cookie&lt;br&gt;
+&lt;code&gt;Send Message&lt;/code&gt; 其實沒有對特殊字元作過濾&lt;br&gt;
+可以完整個插入 &lt;code&gt;&amp;lt;script&amp;gt;alert(1);&amp;lt;/script&amp;gt;&lt;/code&gt; 到網頁裡面&lt;br&gt;
+但是, &lt;em&gt;&lt;em&gt;沒有任何反應&lt;/em&gt;&lt;/em&gt; ......&lt;br&gt;
+仔細研究了一下, 發現網站的 header 有加入 CSP&lt;br&gt;
+CSP 可以限定那些才是合法的 js 來源&lt;br&gt;
+這個網站的設定只有源自 &lt;a href=""&gt;https://api.google.com&lt;/a&gt; 才可以被執行&lt;br&gt;
+因此插入的 XSS 這招是無效的...&lt;br&gt;
+查了很久都沒有可以繞過的方式 Orz  &lt;/p&gt;
+&lt;p&gt;不過也不是毫無所獲&lt;br&gt;
+從 CSP header 發現了一個 uri: &lt;code&gt;report-uri /csp/violate&lt;/code&gt;&lt;br&gt;
+接著追到 &lt;a href=""&gt;http://54.210.118.179/csp/view&lt;/a&gt; 這個頁面&lt;br&gt;
+有趣的是...這個頁面存在 &lt;strong&gt;SQL injection&lt;/strong&gt; 的問題&lt;br&gt;
+把所有欄位拉出來之後, 發現存在 &lt;code&gt;user_password&lt;/code&gt; 這個欄位&lt;br&gt;
+&lt;code&gt;user_password&lt;/code&gt; 的結果是 sha256 hash&lt;br&gt;
+做幾個實驗後, 發現應該是加入 username 當成 salt&lt;br&gt;
+結果會是 &lt;code&gt;user_password = sha256(username+password)&lt;/code&gt;&lt;br&gt;
+把結果拿去爆一下 得到密碼是 &lt;code&gt;6&lt;/code&gt;&lt;br&gt;
+(這邊我們弄錯帳號名稱了, 所以真正的密碼不是這組 XDD)&lt;br&gt;
+搭配剛剛用開頭相頭所得到的 &lt;code&gt;TOTPKEY&lt;/code&gt;&lt;br&gt;
+拿去做 md5 再送記分板就得到.... &lt;em&gt;Wrong flag&lt;/em&gt;  &lt;/p&gt;
+&lt;p&gt;事實上根據剛剛的 &lt;code&gt;TOTPKEY&lt;/code&gt; &amp;amp; &lt;code&gt;password&lt;/code&gt; 也沒辦法成功登入&lt;br&gt;
+後來討論時某人發現昨天和今天註冊的 &lt;code&gt;TOTPKEY&lt;/code&gt; 不一樣&lt;br&gt;
+原本在想是不是加入時間因素下去算&lt;br&gt;
+但是又有人說昨天和今天註冊的帳號 &lt;code&gt;TOTPKEY&lt;/code&gt; 都一樣...XD&lt;br&gt;
+後來想想應該不是時間, 可能是 ip 之類的因子&lt;br&gt;
+但是我們還是不知道 &lt;code&gt;TOTPKEY&lt;/code&gt; 是怎麼拿到的...&lt;br&gt;
+只好尋找其他的方向  &lt;/p&gt;
+&lt;p&gt;那這個網站除了 sqli 以外&lt;br&gt;
+其實還有 LFI 的問題&lt;br&gt;
+&lt;code&gt;Edit Profile&lt;/code&gt; 的功能有一個設定頭像的功能&lt;br&gt;
+會讀外部的 url, 並檢查是不是圖片&lt;br&gt;
+如果是的話設定成頭像&lt;br&gt;
+如果不是圖片就會跳 Exception&lt;br&gt;
+然後把檔案內容當成錯誤資訊印出來&lt;br&gt;
+在這邊做了各種嘗試&lt;br&gt;
+像是去撈 apache 的設定檔&lt;br&gt;
+還有 &lt;code&gt;settings.py&lt;/code&gt; 以後&lt;br&gt;
+最後猜到網頁是寫在 &lt;code&gt;/var/html/weeb/server.py&lt;/code&gt;&lt;br&gt;
+閱讀原始碼後, 發現 &lt;code&gt;TOTPKEY&lt;/code&gt; 的算法如下:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt; 34 def generate_seed(username, ip_address):
+ 35     return int(struct.unpack(&amp;#39;I&amp;#39;, socket.inet_aton(ip_address))[0]) + struct.unpack(&amp;#39;I&amp;#39;, username[:4].ljust(4,&amp;#39;0&amp;#39;))[0]
+ 36
+ 37 def get_totp_key(seed):
+ 38     random.seed(seed)
+ 39     return pyotp.random_base32(16, random)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;的確如我們所推測是靠 &lt;code&gt;username&lt;/code&gt; + &lt;code&gt;ip&lt;/code&gt; 去算的&lt;br&gt;
+但只是當成 seed 接著還要取 random XD&lt;br&gt;
+到這邊幾乎就已經解出來了...可以成功登入&lt;br&gt;
+只是送 flag 還是發現不對&lt;br&gt;
+原因是弄錯帳號啦~~~
+正確的帳號應該是 &lt;code&gt;donaldtrump&lt;/code&gt; 才對 = =&lt;br&gt;
+那密碼用 &lt;code&gt;rockyou.txt&lt;/code&gt; 就可以破出來了~ 結果是 &lt;code&gt;zebra&lt;/code&gt;&lt;br&gt;
+最後做 &lt;code&gt;md5("6OIMTPLHSQ6JUKYPzebra")&lt;/code&gt; 就是這題的 flag 了 XD  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;a8815ecd3c2b6d8e2e884e5eb6916900&lt;/code&gt;  &lt;/p&gt;</content><category term="CSAWCTF"></category><category term="LFI"></category><category term="SQL Injection"></category></entry><entry><title>Codegate CTF Preliminary 2014 200 Web Proxy</title><link href="https://ddaa.tw/codegate_web_200_web_proxy.html" rel="alternate"></link><published>2014-02-26T02:24:00+08:00</published><updated>2014-02-26T02:24:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-02-26:/codegate_web_200_web_proxy.html</id><summary type="html">&lt;p&gt;這題被 &lt;strong&gt;orange&lt;/strong&gt; 秒殺了&lt;br&gt;
+我是賽後才解出來的 Orz  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;網址點開是一個 proxy 頁面&lt;br&gt;
+在 input form 輸入網址後&lt;br&gt;
+會將網頁的部分內容和 header 印出來  &lt;/p&gt;
+&lt;p&gt;打開 source code 可以看到註解有提示&lt;br&gt;
+&lt;em&gt;&lt;!-- admin/index.php --&gt;&lt;/em&gt;&lt;br&gt;
+嘗試用 proxy load 頁面看看:&lt;br&gt;
+&lt;code&gt;http://58.229.183.24/188f6594f694a3ca082f7530b5efc58dedf81b8d/admin/index.php&lt;/code&gt;  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;403 Forbidden  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;這題的方向應該很明確了&lt;br&gt;
+透過 proxy 去存取 &lt;code&gt;admin.php&lt;/code&gt;&lt;br&gt;
+題目的環境是 &lt;strong&gt;apache&lt;/strong&gt;&lt;br&gt;
+應該是透過 &lt;code&gt;.htaccess&lt;/code&gt; 去擋的&lt;br&gt;
+不過似乎沒辦法拿到設定  &lt;/p&gt;
+&lt;p&gt;先隨便跳轉一個網頁&lt;br&gt;
+&lt;code&gt;http://58.229 …&lt;/code&gt;&lt;/p&gt;</summary><content type="html">&lt;p&gt;這題被 &lt;strong&gt;orange&lt;/strong&gt; 秒殺了&lt;br&gt;
+我是賽後才解出來的 Orz  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;網址點開是一個 proxy 頁面&lt;br&gt;
+在 input form 輸入網址後&lt;br&gt;
+會將網頁的部分內容和 header 印出來  &lt;/p&gt;
+&lt;p&gt;打開 source code 可以看到註解有提示&lt;br&gt;
+&lt;em&gt;&lt;!-- admin/index.php --&gt;&lt;/em&gt;&lt;br&gt;
+嘗試用 proxy load 頁面看看:&lt;br&gt;
+&lt;code&gt;http://58.229.183.24/188f6594f694a3ca082f7530b5efc58dedf81b8d/admin/index.php&lt;/code&gt;  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;403 Forbidden  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;這題的方向應該很明確了&lt;br&gt;
+透過 proxy 去存取 &lt;code&gt;admin.php&lt;/code&gt;&lt;br&gt;
+題目的環境是 &lt;strong&gt;apache&lt;/strong&gt;&lt;br&gt;
+應該是透過 &lt;code&gt;.htaccess&lt;/code&gt; 去擋的&lt;br&gt;
+不過似乎沒辦法拿到設定  &lt;/p&gt;
+&lt;p&gt;先隨便跳轉一個網頁&lt;br&gt;
+&lt;code&gt;http://58.229.183.24/188f6594f694a3ca082f7530b5efc58dedf81b8d/index.php?url=www.google.com&lt;/code&gt;&lt;br&gt;
+會發現 proxy 是透過參數 &lt;code&gt;url&lt;/code&gt; 決定轉址頁面&lt;br&gt;
+猜測是透過 &lt;code&gt;header('Location:'+ $url);&lt;/code&gt; 去做轉址&lt;br&gt;
+如果 &lt;code&gt;$url&lt;/code&gt; 沒有做過濾&lt;br&gt;
+會有 &lt;strong&gt;HTTP header CRLF injection&lt;/strong&gt;&lt;br&gt;
+試試看猜測是否正確:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;http://58.229.183.24/188f6594f694a3ca082f7530b5efc58dedf81b8d/index.php?url=www.google.com%2f   
+HTTP/1.1%0d%0a  
+Host: 123%0d%0a  
+%0d%0a  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;blockquote&gt;
+&lt;p&gt;...&lt;br&gt;
+Date: Tue, 25 Feb 2014 19:00:30 GMT&lt;br&gt;
+Server: gws&lt;br&gt;
+Content-Length: 261&lt;br&gt;
+X-XSS-Protection: 1; mode=block  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;喔喔 看起來有反應&lt;br&gt;
+還意外發現 google 的 &lt;strong&gt;XSS protect&lt;/strong&gt; XD&lt;br&gt;
+這邊我們可以偽造 header 竄改來源了&lt;br&gt;
+但是網站好像有做過濾&lt;br&gt;
+只要包含 &lt;code&gt;58.229.183.24&lt;/code&gt; 都會被擋下來&lt;br&gt;
+顯示 &lt;em&gt;Access Denied&lt;/em&gt;&lt;br&gt;
+改嘗試從 &lt;strong&gt;localhost&lt;/strong&gt; 去連頁面:&lt;br&gt;
+&lt;code&gt;url=localhost/188f6594f694a3ca082f7530b5efc58dedf81b8d/admin/&lt;/code&gt;  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;HTTP/1.1 200 OK&lt;br&gt;
+Date: Tue, 25 Feb 2014 18:49:08 GMT&lt;br&gt;
+Server: Apache/2.4.6 (Ubuntu)  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;如此就繞過 &lt;code&gt;.htaccess&lt;/code&gt; 的限制了 lol&lt;br&gt;
+由於這個 proxy 只會顯示網頁的部分內容&lt;br&gt;
+在 header 加入 &lt;code&gt;Range&lt;/code&gt; 可以控制顯示內容範圍  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;Host&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="mi"&gt;123&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="n"&gt;a&lt;/span&gt;  
+&lt;span class="n"&gt;Range&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;bytes&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;100&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="n"&gt;a&lt;/span&gt;  
+&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="n"&gt;d&lt;/span&gt;&lt;span class="o"&gt;%&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="n"&gt;a&lt;/span&gt;  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;慢慢dump內容，結果發現...  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Access Denied&lt;br&gt;
+\&lt;br&gt; 100  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;好吧 看來 code 可能也是有做些存取限制&lt;br&gt;
+嘗試改成 &lt;code&gt;Host: localhost&lt;/code&gt;&lt;br&gt;
+... fail again&lt;br&gt;
+在這邊卡關了一陣子&lt;br&gt;
+決定還是慢慢把全部內容 dump 出來&lt;br&gt;
+結果發現這一段...  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;$_SERVER[HTTP_HOST]=="hackme")--&amp;gt;\&lt;/body&gt;&lt;br&gt;
+&amp;lt;!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN"&amp;gt;  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;所以改成 &lt;code&gt;Host: hackme&lt;/code&gt;&lt;br&gt;
+這題就過了  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;hello admin\&lt;br&gt;&lt;br&gt;
+Password is WH0_IS_SnUS_bI1G_F4N  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;flag: &lt;code&gt;WH0_IS_SnUS_bI1G_F4N&lt;/code&gt;  &lt;/p&gt;</content><category term="Codegate CTF"></category><category term="CRLF"></category></entry><entry><title>phd CTF 2014 Web 2700 PHDays</title><link href="https://ddaa.tw/phd_web_2700_phdays.html" rel="alternate"></link><published>2014-01-28T20:05:00+08:00</published><updated>2014-01-28T20:05:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-01-28:/phd_web_2700_phdays.html</id><summary type="html">&lt;p&gt;其實題目全名是&lt;br&gt;
+&lt;em&gt;stand back, we have PHDays!&lt;/em&gt;&lt;br&gt;
+我去翻以前上課的投影片才發現關鍵&lt;br&gt;
+好險以前有好好上課 XDD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;連到網頁經過檢查以後&lt;br&gt;
+會發現存在 &lt;code&gt;index.php~&lt;/code&gt; 這種暫存檔&lt;br&gt;
+裡面有著登入的 source code  &lt;/p&gt;
+&lt;p&gt;裡面有一行：&lt;br&gt;
+&lt;code&gt;$query = "SELECT username FROM users WHERE id='$uid'";&lt;/code&gt;&lt;br&gt;
+uid 並沒有做過濾，我們可以做 &lt;strong&gt;SQL injection&lt;/strong&gt;&lt;br&gt;
+但是...  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;if(isset($_COOKIE[&amp;#39;uid&amp;#39;])) {
+  $uid = openssl_decrypt ($_COOKIE[&amp;#39;uid&amp;#39;], $method, $key, false, $iv);
+}
+else {
+  $uid = generateRandomString(32);
+  setcookie(&amp;quot;uid …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;其實題目全名是&lt;br&gt;
+&lt;em&gt;stand back, we have PHDays!&lt;/em&gt;&lt;br&gt;
+我去翻以前上課的投影片才發現關鍵&lt;br&gt;
+好險以前有好好上課 XDD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;連到網頁經過檢查以後&lt;br&gt;
+會發現存在 &lt;code&gt;index.php~&lt;/code&gt; 這種暫存檔&lt;br&gt;
+裡面有著登入的 source code  &lt;/p&gt;
+&lt;p&gt;裡面有一行：&lt;br&gt;
+&lt;code&gt;$query = "SELECT username FROM users WHERE id='$uid'";&lt;/code&gt;&lt;br&gt;
+uid 並沒有做過濾，我們可以做 &lt;strong&gt;SQL injection&lt;/strong&gt;&lt;br&gt;
+但是...  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;if(isset($_COOKIE[&amp;#39;uid&amp;#39;])) {
+  $uid = openssl_decrypt ($_COOKIE[&amp;#39;uid&amp;#39;], $method, $key, false, $iv);
+}
+else {
+  $uid = generateRandomString(32);
+  setcookie(&amp;quot;uid&amp;quot;,openssl_encrypt ($uid, $method, $key, false, $iv));
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;uid 是從 &lt;em&gt;$_COOKIE&lt;/em&gt; 得來&lt;br&gt;
+但是被加密過了...&lt;br&gt;
+加密的方式是 &lt;code&gt;$method = 'aes-256-ofb';&lt;/code&gt;&lt;br&gt;
+到這看似無解了&lt;br&gt;
+AES 256 目前還沒有一個很有效率的演算法來破解&lt;br&gt;
+但是仔細研究 ofb 這種 stream cipher&lt;br&gt;
+&lt;img alt="ofb.png" src="https://ddaa.tw/images/phd_2014_phdays_1.png"&gt;  &lt;/p&gt;
+&lt;p&gt;在 key 和 iv 重複使用的情況下&lt;br&gt;
+每次 encrypt 出來的 xor key 都會相同&lt;br&gt;
+因此只要蒐集到夠多的 cipher&lt;br&gt;
+就可以透過&lt;strong&gt;頻率分析&lt;/strong&gt;的方式去解出 xor key  &lt;/p&gt;
+&lt;p&gt;由於密文長度只有 32&lt;br&gt;
+蒐集的 cookie 其實不用太多 雖然越多會越準確&lt;br&gt;
+我後來測試只要蒐集 100 個就足以解出 xor key 了&lt;br&gt;
+將 cookie 做 urldecode 再做 base64 解碼&lt;br&gt;
+才是正確的 cipher&lt;br&gt;
+最後解出的 xor key 是: &lt;code&gt;8fd8392de73d15c49b7188ad91cdcad8cc7978e304d4acd2f336b275b18bcd32&lt;/code&gt;&lt;br&gt;
+有了這一串 xor key&lt;br&gt;
+我們就可以把 payload 加密成正確的形式&lt;br&gt;
+再做 &lt;strong&gt;SQL injection&lt;/strong&gt;  &lt;/p&gt;
+&lt;p&gt;測試一下 &lt;code&gt;' or 1=1 or ''='&lt;/code&gt;&lt;br&gt;
+可以成功得到訊息變成 &lt;em&gt;Welcome, admin!&lt;/em&gt;&lt;br&gt;
+再做幾個測試&lt;br&gt;
+發現存在 &lt;code&gt;password&lt;/code&gt; 欄位&lt;br&gt;
+所以把密碼給猜出來應該就是 key 了&lt;br&gt;
+先試試長度: &lt;code&gt;' or length(password)=46 or '&lt;/code&gt;&lt;br&gt;
+發現密碼共 46 位&lt;br&gt;
+接著寫 script 一個一個踹出正確的字元&lt;br&gt;
+一開始用的 payload 是 &lt;code&gt;' or mid(password,pos,1)='a' xor'&lt;/code&gt;&lt;br&gt;
+但是會大小寫不分...而且不知道為什麼 &lt;em&gt;Y&lt;/em&gt; 測試不出來 = =&lt;br&gt;
+CTF 結束後我又試了一下&lt;br&gt;
+原來直接用 &lt;code&gt;' or mid(password,1,1)='a&lt;/code&gt;&lt;br&gt;
+就可以試出來了 Orz  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;pos 1 is [5]&lt;br&gt;
+pos 2 is [0]&lt;br&gt;
+pos 3 is [M]&lt;br&gt;
+pos 4 is [3]&lt;br&gt;
+pos 5 is [7]&lt;br&gt;
+pos 6 is [I]&lt;br&gt;
+pos 7 is [M]&lt;br&gt;
+pos 8 is [3]&lt;br&gt;
+...  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;flag: &lt;code&gt;50M37IM35_Y0U_D0_N07_N33D_A_K3Y_70_D3CRYP7_AES&lt;/code&gt;  &lt;/p&gt;</content><category term="Other CTF"></category><category term="SQL Injection"></category><category term="Frequency Analysis"></category></entry></feed>

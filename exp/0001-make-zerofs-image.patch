@@ -1,0 +1,94 @@
+From 71ba04dbc17129a244368e432b3f9eb7f4c4004f Mon Sep 17 00:00:00 2001
+From: 0xddaa <0xddaa@gmail.com>
+Date: Sun, 1 Apr 2018 19:15:40 +0800
+Subject: [PATCH 1/2] make zerofs image
+
+---
+ Makefile        | 12 ++++++------
+ mkfs-simplefs.c |  1 -
+ simple.h        |  9 ++++-----
+ 3 files changed, 10 insertions(+), 12 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 5174d90..0b032f7 100644
+--- a/Makefile
++++ b/Makefile
+@@ -2,14 +2,14 @@ obj-m := simplefs.o
+ simplefs-objs := simple.o
+ ccflags-y := -DSIMPLEFS_DEBUG
+ 
+-all: ko mkfs-simplefs
++IMG_PATH = /home/dada/0ctf/zerofs/public/rootfs/tmp/zerofs.img
+ 
+-ko:
+-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
++all: fs
+ 
+-mkfs-simplefs_SOURCES:
+-	mkfs-simplefs.c simple.h
++fs:
++	gcc mkfs-simplefs.c -o mkfs-simplefs
++	dd bs=4096 count=2 if=/dev/zero of=$(IMG_PATH)
++	./mkfs-simplefs $(IMG_PATH)
+ 
+ clean:
+-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+ 	rm mkfs-simplefs
+diff --git a/mkfs-simplefs.c b/mkfs-simplefs.c
+index b75a651..1ceb677 100644
+--- a/mkfs-simplefs.c
++++ b/mkfs-simplefs.c
+@@ -15,7 +15,6 @@
+ static int write_superblock(int fd)
+ {
+ 	struct simplefs_super_block sb = {
+-		.version = 1,
+ 		.magic = SIMPLEFS_MAGIC,
+ 		.block_size = SIMPLEFS_DEFAULT_BLOCK_SIZE,
+ 		.inodes_count = WELCOMEFILE_INODE_NUMBER,
+diff --git a/simple.h b/simple.h
+index a6e7aa1..aec8f23 100644
+--- a/simple.h
++++ b/simple.h
+@@ -1,10 +1,10 @@
+ 
+ 
+-#define SIMPLEFS_MAGIC 0x10032013
++#define SIMPLEFS_MAGIC 0x4F52455A
+ #define SIMPLEFS_JOURNAL_MAGIC = 0x20032013
+ 
+ #define SIMPLEFS_DEFAULT_BLOCK_SIZE 4096
+-#define SIMPLEFS_FILENAME_MAXLEN 255
++#define SIMPLEFS_FILENAME_MAXLEN 256
+ #define SIMPLEFS_START_INO 10
+ /**
+  * Reserver inodes for super block, inodestore
+@@ -54,9 +54,9 @@ struct simplefs_dir_record {
+ };
+ 
+ struct simplefs_inode {
+-	mode_t mode;
+ 	uint64_t inode_no;
+ 	uint64_t data_block_number;
++	mode_t mode;
+ 
+ 	union {
+ 		uint64_t file_size;
+@@ -76,7 +76,6 @@ const int SIMPLEFS_MAX_FILESYSTEM_OBJECTS_SUPPORTED = 64;
+ 
+ struct journal_s;
+ struct simplefs_super_block {
+-	uint64_t version;
+ 	uint64_t magic;
+ 	uint64_t block_size;
+ 
+@@ -88,5 +87,5 @@ struct simplefs_super_block {
+ 	/** FIXME: move this into separate struct */
+ 	struct journal_s *journal;
+ 
+-	char padding[4048];
++	char padding[SIMPLEFS_DEFAULT_BLOCK_SIZE - sizeof(uint64_t) * 4 - sizeof(void *)];
+ };
+-- 
+2.7.4
+

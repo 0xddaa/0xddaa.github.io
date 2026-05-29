@@ -1,0 +1,572 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>ddaa's blog - reverse</title><link href="https://ddaa.tw/" rel="alternate"></link><link href="https://ddaa.tw/feeds/reverse.atom.xml" rel="self"></link><id>https://ddaa.tw/</id><updated>2018-05-17T04:04:00+08:00</updated><entry><title>Plaid CTF 2018 Reverse 200 Plaid Adventure</title><link href="https://ddaa.tw/plaidctf_reverse_200_plaid_adventure.html" rel="alternate"></link><published>2018-05-17T04:04:00+08:00</published><updated>2018-05-17T04:04:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2018-05-17:/plaidctf_reverse_200_plaid_adventure.html</id><summary type="html">&lt;p&gt;這題困難的地方都被 &lt;strong&gt;lucas&lt;/strong&gt; 逆完了 &amp;lt;(_ _)&amp;gt;&lt;br&gt;
+不過有個小地方讓我們卡關超久...&lt;br&gt;
+BTW，我覺得這題分數 200 分有點太少...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;Overview&lt;/h2&gt;
+&lt;p&gt;將題目給的檔案解開後，發現竟然是個 web service = =&lt;br&gt;
+不過只是個靜態網頁，可以隨便用個 python http server 跑起來&lt;br&gt;
+用 broswer 連上可以發現是個文字解謎的遊戲&lt;br&gt;
+這種遊戲模式被稱為 &lt;a href="https://en.wikipedia.org/wiki/Interactive_fiction"&gt;Interactive fiction&lt;/a&gt;  &lt;/p&gt;
+&lt;p&gt;遊戲開始後會進入一個迷宮&lt;br&gt;
+迷宮不算複雜，正常的遊玩就可以把所有場景走一遍&lt;br&gt;
+可以入手的道具有：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;紅、藍、黃、綠 四色寶石各一顆&lt;/li&gt;
+&lt;li&gt;大門鑰匙&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;獲得所有道具後前往某個有大門的場景&lt;br&gt;
+用鑰匙打開門後，會有一台機器可以放置四色寶石&lt;br&gt;
+依序放上後，出現 ... 的訊息&lt;br&gt;
+猜測是要根據某個順序觸碰寶石&lt;br&gt;
+到這邊就無法用正常的繼續遊戲，開始需要逆向遊戲的邏輯&lt;br&gt;
+我大概花一個小時就過到這邊，接下來卡了十幾個小時...Orz  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;gt;put …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;這題困難的地方都被 &lt;strong&gt;lucas&lt;/strong&gt; 逆完了 &amp;lt;(_ _)&amp;gt;&lt;br&gt;
+不過有個小地方讓我們卡關超久...&lt;br&gt;
+BTW，我覺得這題分數 200 分有點太少...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;Overview&lt;/h2&gt;
+&lt;p&gt;將題目給的檔案解開後，發現竟然是個 web service = =&lt;br&gt;
+不過只是個靜態網頁，可以隨便用個 python http server 跑起來&lt;br&gt;
+用 broswer 連上可以發現是個文字解謎的遊戲&lt;br&gt;
+這種遊戲模式被稱為 &lt;a href="https://en.wikipedia.org/wiki/Interactive_fiction"&gt;Interactive fiction&lt;/a&gt;  &lt;/p&gt;
+&lt;p&gt;遊戲開始後會進入一個迷宮&lt;br&gt;
+迷宮不算複雜，正常的遊玩就可以把所有場景走一遍&lt;br&gt;
+可以入手的道具有：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;紅、藍、黃、綠 四色寶石各一顆&lt;/li&gt;
+&lt;li&gt;大門鑰匙&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;獲得所有道具後前往某個有大門的場景&lt;br&gt;
+用鑰匙打開門後，會有一台機器可以放置四色寶石&lt;br&gt;
+依序放上後，出現 ... 的訊息&lt;br&gt;
+猜測是要根據某個順序觸碰寶石&lt;br&gt;
+到這邊就無法用正常的繼續遊戲，開始需要逆向遊戲的邏輯&lt;br&gt;
+我大概花一個小時就過到這邊，接下來卡了十幾個小時...Orz  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&amp;gt;put red
+(the red orb in the red slot)
+The red orb clicks into place, and lights up with a subtle glow.
+
+&amp;gt;put blue
+(the blue orb in the blue slot)
+The blue orb clicks into place, and lights up with a subtle glow.
+
+&amp;gt;put yellow
+(the yellow orb in the yellow slot)
+The yellow orb clicks into place, and lights up with a subtle glow.
+
+&amp;gt;put green
+(the green orb in the green slot)
+The green orb clicks into place, and lights up with a subtle glow.
+The machine whirs to life, and the orbs get brighter. Perhaps you could try touching them?
+
+&amp;gt; 
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;Analysis&lt;/h2&gt;
+&lt;p&gt;一開始有些困惑這題的目的是什麼&lt;br&gt;
+因為 web 並不會去讀取 gblorb&lt;br&gt;
+研究了一陣子發現 web 是透過 interpreter 執行 &lt;code&gt;Plaid Adventure.gblorb.js&lt;/code&gt;&lt;br&gt;
+也可以用其他的媒介載入 gblorb 執行遊戲，兩者沒有差別  &lt;/p&gt;
+&lt;p&gt;用 file 查看 gblorb 會得到以下結果：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;IFF data, Blorb Interactive Fiction with executable chunk&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;丟給 google 搜尋得知和 &lt;a href="https://en.wikipedia.org/wiki/Inform#Inform_7"&gt;Inform 7&lt;/a&gt; 有關&lt;br&gt;
+Inform 7 是拿來開發 IF 的一種 framework&lt;br&gt;
+可以讓開發者用自然語言來撰寫 IF 遊戲 &lt;br&gt;
+寫好的遊戲會以 &lt;a href="https://en.wikipedia.org/wiki/Glulx"&gt;Glulx&lt;/a&gt; 運行 &lt;br&gt;
+Glulx 是一種專門用來執行 IF 的虛擬機&lt;br&gt;
+&lt;a href="https://www.eblong.com/zarf/glulx/"&gt;https://www.eblong.com/zarf/glulx/&lt;/a&gt; 收集了各種 Glulx 的實做&lt;br&gt;
+我後來是選擇用純 cmdline 操作的 &lt;strong&gt;glulxe&lt;/strong&gt; 來執行遊戲&lt;br&gt;
+比較方便透過 script 操作&lt;br&gt;
+不用每次重新手動走迷宮 XD  &lt;/p&gt;
+&lt;h2&gt;Reversing&lt;/h2&gt;
+&lt;p&gt;上述的網站也有 Glulx 的完整 spec&lt;br&gt;
+原先以為要看懂他的實作自己 parsing gblorb 的內容&lt;br&gt;
+但搜尋一下發現已經有寫的 decompiler &lt;a href="https://hackage.haskell.org/package/mrifk"&gt;mrifk&lt;/a&gt; &lt;br&gt;
+可以將 gblorb 轉成 human readable 的 pseudo code&lt;br&gt;
+片段如下：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[ routine221097 local0 ;
+    local0 = 0;
+  .label221105:
+    if (local0 &amp;lt; 16) {
+        478466-&amp;gt;local0 = 0;
+        local0 = local0 + 1;
+        jump label221105;
+    }
+    return 1;
+];
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;pseudo code 中有幾種比較重要的語法&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Object&lt;ul&gt;
+&lt;li&gt;Object 會定義遊戲中的各種場景和物件，並且描述他們之間的關聯性&lt;/li&gt;
+&lt;li&gt;e.g. 房間 A 可以往西走到房間 B，這樣 Object 就會定義 A 和 B 的關聯性&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;Routine&lt;ul&gt;
+&lt;li&gt;Routine 像是執行了某個指令後要觸發的行為，基本上跟 function 十分類似&lt;/li&gt;
+&lt;li&gt;e.g. 輸入 &lt;code&gt;open door&lt;/code&gt;，觸發開門的 Routine，但因為門是上鎖的，檢查某個變數沒有被設置後，就印出對應訊息然後結束 routine，輸入 &lt;code&gt;unlock door with key&lt;/code&gt; 之後，觸發開鎖的 Routine 並設置變數，再次輸入 &lt;code&gt;open door&lt;/code&gt; 就可以順利開門&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;local0, local4, local8, ...&lt;ul&gt;
+&lt;li&gt;類似 local varible 的概念，從命名規則可以推測變數的大小&lt;/li&gt;
+&lt;li&gt;宣告在 routine 名稱後面的代表是 caller 傳來的參數&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;478466-&amp;gt;local0&lt;ul&gt;
+&lt;li&gt;類似全域變數，此例 &lt;code&gt;478466&lt;/code&gt; 是個長度為 16 的一維陣列，local0 是 index&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;但光靜態分析 psedo code 還是難以完全理解程式邏輯&lt;br&gt;
+需要一邊執行遊戲，一邊猜測運行到 pseudo code 的哪一段&lt;br&gt;
+使用 &lt;strong&gt;glulxe&lt;/strong&gt; 進行遊戲還有另一個原因&lt;br&gt;
+&lt;strong&gt;glulxe&lt;/strong&gt; 支援簡單的 debug 功能&lt;br&gt;
+但由於我們沒有遊戲產生時的 debug info&lt;br&gt;
+沒辦法直接存取遊戲裡的數值，只能簡單的下斷點來看程式運行到哪個階段&lt;br&gt;
+斷點還只能設在 routine 的開頭...  &lt;/p&gt;
+&lt;p&gt;透過比對 object 在那些 routine 被使用，及透過 breakpoint 耐心的 try and error&lt;br&gt;
+可以追到有兩個 routine 是解這題的關鍵：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;routine221131&lt;/code&gt;&lt;ul&gt;
+&lt;li&gt;處理 touch 礦石的 Routine&lt;/li&gt;
+&lt;li&gt;做的事情是把每三次觸碰的寶石顏色轉成一個數字，再存入一個長度 16 的矩陣&lt;ul&gt;
+&lt;li&gt;red: 0b01&lt;/li&gt;
+&lt;li&gt;blue: 0b10&lt;/li&gt;
+&lt;li&gt;green: 0b10&lt;/li&gt;
+&lt;li&gt;yellow: 0b11&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;e.g. 觸碰紅色三次就代表 &lt;code&gt;0b010101 = 21&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;routine220666&lt;/code&gt;&lt;ul&gt;
+&lt;li&gt;判斷觸碰的順序是否正確，正確則進入 &lt;code&gt;routine221211&lt;/code&gt; 印 flag&lt;/li&gt;
+&lt;li&gt;將 &lt;code&gt;routine221131&lt;/code&gt; 得到的矩陣與位於 &lt;code&gt;478802&lt;/code&gt; 的二維陣列相乘，得到的結果要與 &lt;code&gt;478482&lt;/code&gt; 的陣列相同&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;不過前面有提到 debugger 沒辦法存取數值&lt;br&gt;
+但我們可以對 glulxe 稍做修改，印出 Glulx 裡面 &lt;code&gt;478802&lt;/code&gt; 和 &lt;code&gt;478482&lt;/code&gt; 位址上的資料  &lt;/p&gt;
+&lt;h2&gt;Solving&lt;/h2&gt;
+&lt;p&gt;由於陣列的大小都是 1 byte&lt;br&gt;
+&lt;code&gt;routine220666&lt;/code&gt; 其實就是 ring 在 0 ~ 255 的矩陣乘法&lt;br&gt;
+&lt;code&gt;routine221131&lt;/code&gt; 得到的矩陣 A 乘上位於 &lt;code&gt;478802&lt;/code&gt; 的矩陣 B 等於位於 &lt;code&gt;478482&lt;/code&gt; 的矩陣 X&lt;br&gt;
+問題簡化為：&lt;strong&gt;AB=X, 已知 B 和 X，求 A 的值?&lt;/strong&gt;&lt;br&gt;
+因此只要求出 B 的反矩陣與 X 相乘就可以得到結果&lt;br&gt;
+將結果根據 &lt;code&gt;routine221131&lt;/code&gt; 的規則做基底為 4 的因式分解就可以推回觸碰的順序&lt;br&gt;
+聽起來很完美，但實際上並不是 Orz  &lt;/p&gt;
+&lt;p&gt;解出來的 A 是 &lt;code&gt;[188, 185, 130, 28, 247, 150, 58, 227, 106, 0, 116, 197, 113, 25, 178, 70]&lt;/code&gt;&lt;br&gt;
+根本無法用 &lt;code&gt;routine221131&lt;/code&gt; 的規則推回對應的顏色&lt;br&gt;
+這邊一開始是先用 z3 求解，為了避免是 z3 規則寫錯，後來改用 sage 做矩陣運算，也是得到相同的結果&lt;br&gt;
+就這樣卡了一陣子，後來發現 &lt;code&gt;478482&lt;/code&gt; 除了 &lt;code&gt;routine220666&lt;/code&gt; 以外&lt;br&gt;
+還有一個 &lt;code&gt;routine221185&lt;/code&gt; 會把 478482[15] + 1 ...&lt;br&gt;
+重算一次得到正確的結果：&lt;code&gt;[48, 7, 46, 15, 21, 25, 11, 24, 49, 16, 55, 12, 40, 41, 48, 47]&lt;/code&gt;&lt;br&gt;
+轉換為顏色後，順序是：
+&lt;code&gt;B B Y Y R B G Y G Y Y B R R R R G R Y G B B G R R B Y B B R Y R Y B Y B B G G R G G B B Y Y Y G&lt;/code&gt;&lt;br&gt;
+但我們因為不知道如何觸發 &lt;code&gt;routine221185&lt;/code&gt;&lt;br&gt;
+做法是直接修改 gblorb 上對應到 478482 的位址&lt;br&gt;
+在按照上面的順序觸摸寶石，flag 就會噴出來了  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;The four orbs get brighter and brighter, as the machine starts violently whirring and clicking. You close your eyes as blinding light fills the room. When you finally open your eyes, you find yourself outside of the cavern, holding the flag in your hands:
+
+PCTF{Tw1styL1ttl3Fl4g}
+
+
+    *** The End ***
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;h2&gt;Note&lt;/h2&gt;
+&lt;p&gt;比賽結束後，irc 上出題者說，要發現隱藏的指令 &lt;code&gt;xyzzy&lt;/code&gt;&lt;br&gt;
+輸入這個指令就會觸發 &lt;code&gt;routine221185&lt;/code&gt;&lt;br&gt;
+應該有不少人也是卡死在這邊 XD  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;PCTF{Tw1styL1ttl3Fl4g}&lt;/code&gt;&lt;br&gt;
+exploit: &lt;a href="https://ddaa.tw/exp/plaid-adventure.sage"&gt;solve.sage&lt;/a&gt;  &lt;/p&gt;</content><category term="PlaidCTF"></category></entry><entry><title>Boston Key Party CTF 2016 Reverse 3 Harvard Jit in my pants</title><link href="https://ddaa.tw/bkpctf_reverse_3_jit_in_my_pants.html" rel="alternate"></link><published>2016-03-15T23:00:00+08:00</published><updated>2016-03-15T23:00:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2016-03-15:/bkpctf_reverse_3_jit_in_my_pants.html</id><summary type="html">&lt;p&gt;剛從成功嶺出來就撞上這場 CTF ... XD&lt;br&gt;
+果然是醬油到爆&lt;br&gt;
+雖然去成功嶺之前大概也差不多吧 囧  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目給了一個 elf 超混亂 看不懂&lt;br&gt;
+但是包含了一些奇怪的字串&lt;br&gt;
+丟去 google 可以發現這個 elf 是由 &lt;strong&gt;MyJIT&lt;/strong&gt; 寫成的程式&lt;br&gt;
+&lt;a href=""&gt;MyJIt&lt;/a&gt;&lt;br&gt;
+其實從題目名稱大概就猜得到這題是 just in time 生成的程式&lt;br&gt;
+所以直接逆 elf 是很難看出程式邏輯的  &lt;/p&gt;
+&lt;p&gt;第一件事情就是 dump 出程式實際在執行的 code&lt;br&gt;
+先用 &lt;code&gt;ltrace&lt;/code&gt; 稍微看一下程式在幹麻&lt;br&gt;
+經過一連串不知所云的 &lt;code&gt;malloc&lt;/code&gt; &amp;amp; &lt;code&gt;free&lt;/code&gt; 之後&lt;br&gt;
+發現最後會用 &lt;code&gt;puts&lt;/code&gt; 印出 &lt;em&gt;NOPE.&lt;/em&gt;&lt;br&gt;
+可以直接在 puts 下斷點&lt;br&gt;
+會發現有一塊 rwx 的 memory 在 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;剛從成功嶺出來就撞上這場 CTF ... XD&lt;br&gt;
+果然是醬油到爆&lt;br&gt;
+雖然去成功嶺之前大概也差不多吧 囧  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目給了一個 elf 超混亂 看不懂&lt;br&gt;
+但是包含了一些奇怪的字串&lt;br&gt;
+丟去 google 可以發現這個 elf 是由 &lt;strong&gt;MyJIT&lt;/strong&gt; 寫成的程式&lt;br&gt;
+&lt;a href=""&gt;MyJIt&lt;/a&gt;&lt;br&gt;
+其實從題目名稱大概就猜得到這題是 just in time 生成的程式&lt;br&gt;
+所以直接逆 elf 是很難看出程式邏輯的  &lt;/p&gt;
+&lt;p&gt;第一件事情就是 dump 出程式實際在執行的 code&lt;br&gt;
+先用 &lt;code&gt;ltrace&lt;/code&gt; 稍微看一下程式在幹麻&lt;br&gt;
+經過一連串不知所云的 &lt;code&gt;malloc&lt;/code&gt; &amp;amp; &lt;code&gt;free&lt;/code&gt; 之後&lt;br&gt;
+發現最後會用 &lt;code&gt;puts&lt;/code&gt; 印出 &lt;em&gt;NOPE.&lt;/em&gt;&lt;br&gt;
+可以直接在 puts 下斷點&lt;br&gt;
+會發現有一塊 rwx 的 memory 在 &lt;code&gt;0x778000&lt;/code&gt;&lt;br&gt;
+dump 出來就會是 runtime 實際在運作的程式了  &lt;/p&gt;
+&lt;p&gt;轉回 asm 會發覺整段只有一個 function&lt;br&gt;
+不知道能不能丟回 ida 轉 pseudo code...&lt;br&gt;
+如果有人知道怎麼做麻煩教我一下 QQ&lt;br&gt;
+這段 code 跳來跳去而且用了很多不常見的指令&lt;br&gt;
+靜態分析看不太懂&lt;br&gt;
+追一追就掉到 loop 裡了&lt;br&gt;
+loop 裡會一直 call 那堆不知所云的 &lt;code&gt;malloc&lt;/code&gt;  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;0000000000778144 ff95f8feffff     call qword [rbp-0x108]  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;在這邊卡了一陣子&lt;br&gt;
+後來回去追 elf 的流程發現 &lt;code&gt;0x4473ef&lt;/code&gt; 在處理 output 訊息&lt;br&gt;
+字串不是直接放在 rodata&lt;br&gt;
+而是一個 byte 一個 byte 處理&lt;br&gt;
+做出字串再丟到 &lt;code&gt;puts&lt;/code&gt;&lt;br&gt;
+所以一開始沒有發現這個 function ...&lt;br&gt;
+&lt;code&gt;0x4473ef&lt;/code&gt; 會根據第一個參數的內容是 0 or 1 or 2&lt;br&gt;
+決定要印出哪個字串 (Nope/Congraz.../Usage)&lt;br&gt;
+往回追是什麼地方會 call &lt;code&gt;0x4473ef&lt;/code&gt;&lt;br&gt;
+結果發現跟 call malloc 的是同一行...囧&lt;br&gt;
+繼續往回追 rdi 是怎麼來的&lt;br&gt;
+跟蹤一連串的 jmp 以後&lt;br&gt;
+大概三四次吧 其實沒有很多&lt;br&gt;
+可以找到比對 flag 的關鍵點 而且是線性比對&lt;br&gt;
+所以可以用爆破的方式一個一個 byte 爆出 flag
+ &lt;code&gt;0x77827f&lt;/code&gt; 會將正確的長度放在 rcx&lt;br&gt;
+因此只要看目前正確的長度數量&lt;br&gt;
+就可以判斷有沒有猜對了&lt;br&gt;
+後面生成 flag 的部分我就懶得看了&lt;br&gt;
+直接用爆破的方式爆出 flag  &lt;/p&gt;
+&lt;p&gt;順帶一提 我一直以為 bostonkeyparty 的縮寫是 BKT&lt;br&gt;
+前面先打好 prefix 結果怎麼爆都不對...&lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;BKPCTF{S1de_Ch4nnel_att4cks_are_s0_1338}&lt;/code&gt;  &lt;/p&gt;</content><category term="BKPCTF"></category></entry><entry><title>Secuinside ctf 2014 reverse 100 find key</title><link href="https://ddaa.tw/secuinside_reverse_100_find_the_key.html" rel="alternate"></link><published>2014-06-09T02:46:00+08:00</published><updated>2014-06-09T02:46:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-06-09:/secuinside_reverse_100_find_the_key.html</id><summary type="html">&lt;p&gt;這題是快要結束才開出來的一題 reverse&lt;br&gt;
+到結束也沒人解出來 ORZ&lt;br&gt;
+稱假日有點時間還是把它解出來了...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目是一個 32 bit 的 elf&lt;br&gt;
+執行需要輸入兩個參數&lt;br&gt;
+題目會先對第一個參數做檢查  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;./findkey 123 123&lt;br&gt;
+key 1 = 123&lt;br&gt;
+0 is differnce&lt;br&gt;
+Wrong password  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;很快找到檢查第一個參數的 function 在 &lt;code&gt;0x0804b76d&lt;/code&gt;&lt;br&gt;
+trace 完後這個 func 的演算法是：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;def sub_804b76d(arg1,n=0x31):
+    for i in range(56):
+        v7 = 0
+        v4 = len(sentence[i])
+        v2 = smaller(n …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;這題是快要結束才開出來的一題 reverse&lt;br&gt;
+到結束也沒人解出來 ORZ&lt;br&gt;
+稱假日有點時間還是把它解出來了...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目是一個 32 bit 的 elf&lt;br&gt;
+執行需要輸入兩個參數&lt;br&gt;
+題目會先對第一個參數做檢查  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;./findkey 123 123&lt;br&gt;
+key 1 = 123&lt;br&gt;
+0 is differnce&lt;br&gt;
+Wrong password  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;很快找到檢查第一個參數的 function 在 &lt;code&gt;0x0804b76d&lt;/code&gt;&lt;br&gt;
+trace 完後這個 func 的演算法是：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;def sub_804b76d(arg1,n=0x31):
+    for i in range(56):
+        v7 = 0
+        v4 = len(sentence[i])
+        v2 = smaller(n,v4)
+
+        for j in range(v2):
+            v7 += (ord(sentence[i][j]) * ord(arg1[j]))
+            j+=1
+
+        if v7 != dword_804F180[i]:
+            print &amp;quot;%d is difference&amp;quot; % i
+            return
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;程式中存了 56 個字串&lt;br&gt;
+會依序取得每個字元與 &lt;code&gt;argv[1]&lt;/code&gt; 相乘並加總&lt;br&gt;
+並檢查結果是否如預期&lt;br&gt;
+看起來很複雜&lt;br&gt;
+其實就是國中的數學 多元一次方程式 XD&lt;br&gt;
+給 56 個方程式解 49 個未知數這樣&lt;br&gt;
+但是這邊一開始卡關了&lt;br&gt;
+逐一檢查後才發現&lt;br&gt;
+由於字串中有幾個 byte 是特殊字元&lt;br&gt;
+那邊在程式中的加總結果與我模擬的不同&lt;br&gt;
+原因我沒有深究~ 反正只要有 49 個方程式就能解了&lt;br&gt;
+把那幾個扣掉後依然可以得到解&lt;br&gt;
+&lt;code&gt;3 lroea5 r tfmh0wl1y15on 3y! 4n 50r,30wv3r !4kwi&lt;/code&gt;&lt;br&gt;
+也就是第一個參數  &lt;/p&gt;
+&lt;p&gt;通過第一階段以後&lt;br&gt;
+剩下的頗複雜 Orz&lt;br&gt;
+很多 function 亂 call&lt;br&gt;
+還有很多根本沒做事情 = =&lt;br&gt;
+只好用動態分析的方式檢查 function 在做啥&lt;br&gt;
+&lt;code&gt;sub_8048A32&lt;/code&gt; 和 &lt;code&gt;sub_8048A58&lt;/code&gt; 作用不明&lt;br&gt;
+不負責任猜測可能是類似 &lt;code&gt;malloc&lt;/code&gt; 和 &lt;code&gt;free&lt;/code&gt; 的動作&lt;br&gt;
+程式流程如下：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="nt"&gt;sub_8048A32&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;src&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="nt"&gt;0&lt;/span&gt;&lt;span class="o"&gt;);&lt;/span&gt;
+&lt;span class="nt"&gt;strtobigint&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;src&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="nt"&gt;argv&lt;/span&gt;&lt;span class="cp"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="cp"&gt;]&lt;/span&gt;&lt;span class="o"&gt;);&lt;/span&gt;
+&lt;span class="nt"&gt;memcpy&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;dst&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="nt"&gt;src&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="nt"&gt;sizeof&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;dst&lt;/span&gt;&lt;span class="o"&gt;));&lt;/span&gt;
+&lt;span class="nt"&gt;v3&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nt"&gt;check_key2&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;argv&lt;/span&gt;&lt;span class="cp"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="cp"&gt;]&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="nt"&gt;n&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt;&lt;span class="nt"&gt;dst&lt;/span&gt;&lt;span class="o"&gt;)^&lt;/span&gt;&lt;span class="nt"&gt;1&lt;/span&gt;&lt;span class="o"&gt;;&lt;/span&gt;
+&lt;span class="nt"&gt;sub_8048A58&lt;/span&gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;dst&lt;/span&gt;&lt;span class="o"&gt;);&lt;/span&gt;
+&lt;span class="nt"&gt;if&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nt"&gt;v3&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+  &lt;span class="err"&gt;puts(&amp;quot;Wrongpassword&amp;quot;)&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+  &lt;span class="err"&gt;v2=1&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;span class="nt"&gt;else&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+  &lt;span class="err"&gt;printf(&amp;quot;&lt;/span&gt;&lt;span class="n"&gt;Theflagis&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="s1"&gt;&amp;#39;%s&amp;#39;&lt;/span&gt;&lt;span class="err"&gt;\&lt;/span&gt;&lt;span class="n"&gt;n&lt;/span&gt;&lt;span class="err"&gt;&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;&lt;span class="n"&gt;argv&lt;/span&gt;&lt;span class="cp"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="cp"&gt;]&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+  &lt;span class="err"&gt;v2=0&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;第二部分會先將 &lt;code&gt;argv[2]&lt;/code&gt; 轉換成一個 struct&lt;br&gt;
+架構大概長這樣：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;struct bigint{
+  int signed;
+  unsigned int length[2];
+  unsigned int value[2000];
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;接著進入到 &lt;code&gt;check_key2()&lt;/code&gt; 裡面&lt;br&gt;
+程式流程如下：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;memcpy(&amp;amp;_bigint,bigint,8008u);
+sub_804b330(digits,&amp;amp;_bigint,n);
+sub_8048A58(&amp;amp;_bigint);
+_0x31=n;
+for (i=0;i&amp;lt;_0x31;++i){
+  v12=0;
+  for (j=0;j&amp;lt;i;++j){
+    v3=*next_digit(digits,j);
+    if (v3&amp;gt;*next_digit(digits,i))
+      ++v12;
+  }
+  if (dword_804F280[i]!=v12){
+    v4=0;
+    gotoLABEL_15;
+  }
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;首先是 &lt;code&gt;sub_804b330&lt;/code&gt; 這個 function&lt;br&gt;
+會將 &lt;code&gt;argv[2]&lt;/code&gt; 所輸入的數字&lt;br&gt;
+轉變成一個 mod 49 的多項式&lt;br&gt;
+像是 &lt;code&gt;a48 * x^48 + a47 * x^47 + ... + a1 * x + a0&lt;/code&gt; 這樣子&lt;br&gt;
+此外還會確認 a0 ~ a48 是否全部不相同&lt;br&gt;
+如果有任兩個相同會直接印出 &lt;code&gt;Wrong password&lt;/code&gt; 並結束程式  &lt;/p&gt;
+&lt;p&gt;接下來程式會用兩個 for loop 去檢查分解出來的係數&lt;br&gt;
+如果第 n 個係數 an &amp;lt; 前面的任一係數 ai&lt;br&gt;
+v12 的值就會 +1&lt;br&gt;
+接著對 v12 的值與保存於 &lt;code&gt;dword_804F280&lt;/code&gt; 做比較&lt;br&gt;
+其值依序為   &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;0 1 0 1 1 1 2 4 1 3 1 6 2 4 5 2 16 17 0 16 2 14 9 1 15 9 10 14 0 15 17 27 4 17 14 10 5 7 13 21 35 9 28 25 42 23 8 45 27&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;因為係數的值彼此不同&lt;br&gt;
+比較係數大小可以確保係數的順序是正確&lt;br&gt;
+接著要從 &lt;code&gt;dword_804F280&lt;/code&gt; 去推算出正確的順序是多少&lt;br&gt;
+觀察了一下發現到一件很重要的事情：&lt;br&gt;
+&lt;strong&gt;最晚出現的 0 代表其係數為 48&lt;/strong&gt;&lt;br&gt;
+可以用反證法來推論其正確：  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;如果更前面有係數為 48 ， dword_804F280[i] 不會是 0&lt;/li&gt;
+&lt;li&gt;如果更後面的係數為 48 ， dword_804F280[i] 不會是最後一個出現的 0&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;最後一個 0 在 index = 23 的位置&lt;br&gt;
+因此 a23 = 48&lt;br&gt;
+接著我們把 48 扣掉&lt;br&gt;
+並且把 &lt;code&gt;dword_804F280&lt;/code&gt; 所有 index &amp;gt; 23 的值 -1&lt;br&gt;
+現在最後一個 0 所代表的值就是 47&lt;br&gt;
+以此類推 我們可以得到所有的係數&lt;br&gt;
+最後將所有係數透過多項式算出的大數為 &lt;code&gt;28367585747398446017812492718893415428463369378432457345198085366128794480569061784&lt;/code&gt;&lt;br&gt;
+也就是第二個參數&lt;br&gt;
+兩個參數都正確 flag 也就噴出來了  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;./exec&lt;br&gt;
+key 1 = 3 lroea5 r  tfmh0wl1y15on 3y! 4n 50r,30wv3r !4kwi&lt;br&gt;
+The flag is : 'w0w! 1nv3r51on arr4y i5 4we50m3 f0r th3 k3y, lol!'  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;flag: &lt;code&gt;w0w! 1nv3r51on arr4y i5 4we50m3 f0r th3 k3y, lol!&lt;/code&gt;&lt;/p&gt;</content><category term="Other CTF"></category></entry><entry><title>Codegate CTF Preliminary 2014 200 dodoCrackme</title><link href="https://ddaa.tw/codegate_reverse_200_dodocrackme.html" rel="alternate"></link><published>2014-02-24T01:53:00+08:00</published><updated>2014-02-24T01:53:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-02-24:/codegate_reverse_200_dodocrackme.html</id><summary type="html">&lt;p&gt;這是應該是我玩過的 CTF 裡面最硬的一次 ORZ&lt;br&gt;
+大量的 pwn 和 reversing&lt;br&gt;
+根本破壞遊戲體驗....= =&lt;br&gt;
+這次跟 217 和 chroot 還有 sqlab 學長一起參加&lt;br&gt;
+跟大大們學到很多招數 :)&lt;br&gt;
+希望下次別這麼醬油了 Orz  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是 &lt;strong&gt;ELF 64-bit LSB executable&lt;/strong&gt;&lt;br&gt;
+先觀察一下行為:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;root@localhost's password: 1234&lt;br&gt;
+Permission denied (password).  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;感覺就要先把 root password 弄到手&lt;br&gt;
+先把分析看看 binary&lt;br&gt;
+用ida打開會嚇一跳&lt;br&gt;
+因為是用組語寫的 Orz&lt;br&gt;
+function 只有一個start&lt;br&gt;
+出現很多 syscall  &lt;/p&gt;
+&lt;p&gt;查一下資料發現 syscall 會把 call number …&lt;/p&gt;</summary><content type="html">&lt;p&gt;這是應該是我玩過的 CTF 裡面最硬的一次 ORZ&lt;br&gt;
+大量的 pwn 和 reversing&lt;br&gt;
+根本破壞遊戲體驗....= =&lt;br&gt;
+這次跟 217 和 chroot 還有 sqlab 學長一起參加&lt;br&gt;
+跟大大們學到很多招數 :)&lt;br&gt;
+希望下次別這麼醬油了 Orz  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是 &lt;strong&gt;ELF 64-bit LSB executable&lt;/strong&gt;&lt;br&gt;
+先觀察一下行為:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;root@localhost's password: 1234&lt;br&gt;
+Permission denied (password).  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;感覺就要先把 root password 弄到手&lt;br&gt;
+先把分析看看 binary&lt;br&gt;
+用ida打開會嚇一跳&lt;br&gt;
+因為是用組語寫的 Orz&lt;br&gt;
+function 只有一個start&lt;br&gt;
+出現很多 syscall  &lt;/p&gt;
+&lt;p&gt;查一下資料發現 syscall 會把 call number 放在 &lt;code&gt;rax&lt;/code&gt; &lt;br&gt;
+用 interrupt 處理動作  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt; mov    $0x1,%eax  
+ mov    $0x1,%edi  
+ mov    %rbp,%rsi  
+ mov    $0x1,%edx  
+ syscall  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;上面組語的行為是 &lt;code&gt;write(1, rbp, 1);&lt;/code&gt;&lt;br&gt;
+過程中是用 inc / dec 控制輸出的 byte&lt;br&gt;
+直接看 code 看不出密碼&lt;br&gt;
+輸出 &lt;em&gt;root@localhost's password:&lt;/em&gt; 後&lt;br&gt;
+接著是一些用途不明的 code&lt;br&gt;
+然後才是 syscall read&lt;br&gt;
+在 syscall 的地方下 breakpoint&lt;br&gt;
+接著把 &lt;code&gt;rbp&lt;/code&gt; 附近的 memory dump 出來&lt;br&gt;
+發現從 &lt;code&gt;0x7ffff7ff8b58&lt;/code&gt; 開始&lt;br&gt;
+每隔 16 byte 就會有奇怪的字元:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;0x7ffff7ff8b58: 72 'H'  &lt;br&gt;
+0x7ffff7ff8b60: 0 '\000'&lt;br&gt;
+0x7ffff7ff8b68: 52 '4'  &lt;br&gt;
+0x7ffff7ff8b70: 0 '\000'&lt;br&gt;
+0x7ffff7ff8b78: 80 'P'  &lt;br&gt;
+0x7ffff7ff8b80: 0 '\000'&lt;br&gt;
+0x7ffff7ff8b88: 80 'P'  &lt;br&gt;
+0x7ffff7ff8b90: 0 '\000'&lt;br&gt;
+0x7ffff7ff8b98: 89 'Y'  &lt;br&gt;
+...  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;所以推測剛剛那段意義不明的 code 是用來生成 password&lt;br&gt;
+不過到這已經可以知道 flag 了&lt;br&gt;
+我就沒有去回去研究到底是不是如我猜想的了  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;H4PPY_C0DEGaTE_2014_CU_1N_K0RE4&lt;/code&gt;  &lt;/p&gt;</content><category term="Codegate CTF"></category></entry><entry><title>GiTs 2014 Reverse 150 papsmear</title><link href="https://ddaa.tw/gits_reverse_150_papsmear.html" rel="alternate"></link><published>2014-01-20T19:58:00+08:00</published><updated>2014-01-20T19:58:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-01-20:/gits_reverse_150_papsmear.html</id><summary type="html">&lt;p&gt;這題很慢才打開&lt;br&gt;
+解出來的時後竟然超過時間了阿阿阿&lt;br&gt;
+悲劇 看來還是對 python 不夠熟  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;根據說明用 nc 連至目標後&lt;br&gt;
+隨便輸入一些字串&lt;br&gt;
+得到錯誤訊息 :  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Serial: asd&lt;br&gt;
+Bzzt. Wrong!  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;直接打開檔案發現是一個 python 的 code&lt;br&gt;
+最後有兩行:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;with open(&amp;#39;flag.txt&amp;#39;,&amp;#39;r&amp;#39;) as f:
+    print f.read()
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;看來這題的目的很明顯了&lt;br&gt;
+需要找出一個正確 Serial 滿足所有條件&lt;br&gt;
+Server 就會把 key 給噴出來&lt;br&gt;
+剩下的就是 trace code...&lt;br&gt;
+首先，程式將 Serial 以 &lt;em&gt;-&lt;/em&gt; 分開 變成 6 個數字&lt;br&gt;
+每次取 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;這題很慢才打開&lt;br&gt;
+解出來的時後竟然超過時間了阿阿阿&lt;br&gt;
+悲劇 看來還是對 python 不夠熟  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;根據說明用 nc 連至目標後&lt;br&gt;
+隨便輸入一些字串&lt;br&gt;
+得到錯誤訊息 :  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Serial: asd&lt;br&gt;
+Bzzt. Wrong!  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;直接打開檔案發現是一個 python 的 code&lt;br&gt;
+最後有兩行:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;with open(&amp;#39;flag.txt&amp;#39;,&amp;#39;r&amp;#39;) as f:
+    print f.read()
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;看來這題的目的很明顯了&lt;br&gt;
+需要找出一個正確 Serial 滿足所有條件&lt;br&gt;
+Server 就會把 key 給噴出來&lt;br&gt;
+剩下的就是 trace code...&lt;br&gt;
+首先，程式將 Serial 以 &lt;em&gt;-&lt;/em&gt; 分開 變成 6 個數字&lt;br&gt;
+每次取 1 對數字 &lt;code&gt;(num1, num2)&lt;/code&gt; 做判斷  &lt;/p&gt;
+&lt;p&gt;先解釋一下每個函數代表的意思:  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;_a()&lt;/code&gt; : 得到數個質數，大小為 2~x ，每次呼叫後都會改變下一次呼叫的值&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;__a(n)&lt;/code&gt; : 為 &lt;code&gt;_a()&lt;/code&gt; 所得到的質數做過濾，如果是 n 的因數，則過濾此質數&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;___a(n)&lt;/code&gt; : 將 &lt;code&gt;__a()&lt;/code&gt; 過濾後的質數做 (1 - 1.0 / p) 取整數後相乘&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;____a(n)&lt;/code&gt; : &lt;code&gt;___(num1 * num2) == ___a(num1) * ___a(num2)&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;_____a(num1, num2)&lt;/code&gt; : 限制 num1 介於10001~100000，num2 介於100~999&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;程式有幾條限制 任何一條沒滿足都會發生 exception 並結束:  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;_____a()&lt;/code&gt; 回傳 True&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;___a(num1) == num1 - 1&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;____a()&lt;/code&gt; 回傳 True&lt;/li&gt;
+&lt;li&gt;3個(num1,num2)組合不能相同&lt;/li&gt;
+&lt;li&gt;最後一個條件有點複雜，直接看 code&lt;/li&gt;
+&lt;/ol&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;for k in range(7,10):
+  a,b = int(c.pop()),int(c.pop())
+  for x in [a+b*n for n in range(k)]:
+    y = [p for p in __a(x)]
+    if not (len(y)==1 and y[0]==x):raise
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;看似條件很多&lt;br&gt;
+但是其實 &lt;em&gt;條件 1&lt;/em&gt; 是限制 input size&lt;br&gt;
+&lt;em&gt;條件 3&lt;/em&gt; 很容易滿足&lt;br&gt;
+所以暫時不用考慮&lt;br&gt;
+我們先找出滿足 &lt;em&gt;條件 2&lt;/em&gt; 的所有 &lt;code&gt;num1&lt;/code&gt;&lt;br&gt;
+再用暴力解去找出滿足 &lt;em&gt;條件 5&lt;/em&gt; 的解&lt;br&gt;
+最後再用 &lt;em&gt;條件 3&lt;/em&gt; 來檢查是不是正確的解  &lt;/p&gt;
+&lt;p&gt;只有三組 k 滿足以上條件&lt;br&gt;
+&lt;strong&gt;k = 7 or 8 or 9&lt;/strong&gt; 
+分別對應到 3 組 num&lt;br&gt;
+有些解是共同的&lt;br&gt;
+因為 &lt;em&gt;條件 4&lt;/em&gt; 的限制所以要挑不一樣的解&lt;br&gt;
+隨便選一組送過去就拿到key了  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Serial:&lt;br&gt;
+10243-420-11003-630-10859-210&lt;br&gt;
+The flag is: ThesePrimesAreNotIllegal  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;flag: &lt;code&gt;ThesePrimesAreNotIllegal&lt;/code&gt;  &lt;/p&gt;</content><category term="Other CTF"></category></entry></feed>

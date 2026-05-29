@@ -1,0 +1,1017 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>ddaa's blog - crypto</title><link href="https://ddaa.tw/" rel="alternate"></link><link href="https://ddaa.tw/feeds/crypto.atom.xml" rel="self"></link><id>https://ddaa.tw/</id><updated>2017-06-26T11:38:00+08:00</updated><entry><title>Google CTF 2017 Crypto 201 RSA CTF Challenge</title><link href="https://ddaa.tw/gctf_crypto_201_rsa_ctf_challenge.html" rel="alternate"></link><published>2017-06-26T11:38:00+08:00</published><updated>2017-06-26T11:38:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2017-06-26:/gctf_crypto_201_rsa_ctf_challenge.html</id><summary type="html">&lt;p&gt;這題沒有解出來...不過學到很多關於 &lt;strong&gt;PKCS#1 v1.5&lt;/strong&gt; 的攻擊方式&lt;br&gt;
+還是厚著臉皮寫了一篇 write up  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;PKCS#1 v1.5 是 RSA 的一種實際應用方式，詳細內容可以參考 RFC 2313&lt;sup id="fnref-rfc2313"&gt;&lt;a class="footnote-ref" href="#fn-rfc2313"&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;br&gt;
+目的是將訊息 padding 後構造成數位簽章或數位信封使用的格式，大概會長得這樣：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;EB&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;Encryption&lt;/span&gt; &lt;span class="n"&gt;block&lt;/span&gt; 
+&lt;span class="n"&gt;BT&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;Block&lt;/span&gt; &lt;span class="n"&gt;type&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;00&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;01&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;02&lt;/span&gt;
+&lt;span class="n"&gt;PS&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;Padding&lt;/span&gt; &lt;span class="n"&gt;string&lt;/span&gt;
+&lt;span class="n"&gt;D&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;  &lt;span class="n"&gt;Data&lt;/span&gt;
+
+&lt;span class="n"&gt;EB&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;00&lt;/span&gt; &lt;span class="o"&gt;||&lt;/span&gt; &lt;span class="n"&gt;BT&lt;/span&gt; &lt;span class="o"&gt;||&lt;/span&gt; &lt;span class="n"&gt;PS&lt;/span&gt; &lt;span class="o"&gt;||&lt;/span&gt; &lt;span class="mi"&gt;00&lt;/span&gt; &lt;span class="o"&gt;||&lt;/span&gt; &lt;span class="n"&gt;D&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;本題是要找出是簽署 &lt;code&gt;challenge&lt;/code&gt; 這個字串的 signature &lt;br&gt;
+因此接下來只看 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;這題沒有解出來...不過學到很多關於 &lt;strong&gt;PKCS#1 v1.5&lt;/strong&gt; 的攻擊方式&lt;br&gt;
+還是厚著臉皮寫了一篇 write up  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;PKCS#1 v1.5 是 RSA 的一種實際應用方式，詳細內容可以參考 RFC 2313&lt;sup id="fnref-rfc2313"&gt;&lt;a class="footnote-ref" href="#fn-rfc2313"&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;br&gt;
+目的是將訊息 padding 後構造成數位簽章或數位信封使用的格式，大概會長得這樣：&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="n"&gt;EB&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;Encryption&lt;/span&gt; &lt;span class="n"&gt;block&lt;/span&gt; 
+&lt;span class="n"&gt;BT&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;Block&lt;/span&gt; &lt;span class="n"&gt;type&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;00&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;01&lt;/span&gt;&lt;span class="o"&gt;,&lt;/span&gt; &lt;span class="mi"&gt;02&lt;/span&gt;
+&lt;span class="n"&gt;PS&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt; &lt;span class="n"&gt;Padding&lt;/span&gt; &lt;span class="n"&gt;string&lt;/span&gt;
+&lt;span class="n"&gt;D&lt;/span&gt;&lt;span class="o"&gt;:&lt;/span&gt;  &lt;span class="n"&gt;Data&lt;/span&gt;
+
+&lt;span class="n"&gt;EB&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;00&lt;/span&gt; &lt;span class="o"&gt;||&lt;/span&gt; &lt;span class="n"&gt;BT&lt;/span&gt; &lt;span class="o"&gt;||&lt;/span&gt; &lt;span class="n"&gt;PS&lt;/span&gt; &lt;span class="o"&gt;||&lt;/span&gt; &lt;span class="mi"&gt;00&lt;/span&gt; &lt;span class="o"&gt;||&lt;/span&gt; &lt;span class="n"&gt;D&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;本題是要找出是簽署 &lt;code&gt;challenge&lt;/code&gt; 這個字串的 signature &lt;br&gt;
+因此接下來只看 BT = 01 的情況&lt;br&gt;
+簽署 signature PS 會是 n 個 ff&lt;br&gt;
+Data 會由兩部分組成，分別是 &lt;code&gt;ASN.1&lt;/code&gt;&lt;sup id="fnref-asn1"&gt;&lt;a class="footnote-ref" href="#fn-asn1"&gt;2&lt;/a&gt;&lt;/sup&gt; 和 &lt;code&gt;hash(m)&lt;/code&gt;&lt;br&gt;
+&lt;code&gt;ASN.1&lt;/code&gt; 取決於後面用哪一種 hash 演算法&lt;br&gt;
+可以把他想像成 hash 演算法的特徵碼  &lt;/p&gt;
+&lt;p&gt;PKCS#1 v1.5 本身沒有問題&lt;br&gt;
+但是在兩個條件存在時，可以任意偽造任意訊息的 signature  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;RSA 產生 key pair 時使用了過小的 e (exponent)&lt;/li&gt;
+&lt;li&gt;用了不正確的方式解析 signature&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;RSA 的加密方式是 &lt;code&gt;c = m ** e % N&lt;/code&gt;&lt;br&gt;
+如果 e 太小，導致 &lt;code&gt;m ** e &amp;lt; N&lt;/code&gt; 成立，解密就可以化簡成:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;已知 m、N、e，求 c 的 e 次方根  
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;對 PKCS#1 v1.5 而言也有類似的問題，由於格式固定&lt;br&gt;
+如果知道 public key 的長度和 message，我們可以推出 RSA 加密後的 signature 會是：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;EB = 0001 + ff * n + 00 + ASN.1 + hash(m)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;n 取決於 public key 的長度，假設長度是 1024，就要 padding 91 個 ff&lt;br&gt;
+如果 e 太小而且&lt;code&gt;EB&lt;/code&gt; 剛好是 e 次方數，signature 就是 &lt;code&gt;EB&lt;/code&gt; 開 e 次方根&lt;br&gt;
+(不太確定在正確 padding 的情況下，&lt;code&gt;EB&lt;/code&gt; 是不是不可能會是 e 次方數)  &lt;/p&gt;
+&lt;p&gt;本題在原始碼中附上了 public key&lt;br&gt;
+N = 1024 bit，e = 3&lt;br&gt;
+想當然，這題的 &lt;code&gt;EB&lt;/code&gt; 不是一個立方數 XD&lt;br&gt;
+因此還需要條件 2 才有辦法成功偽造 &lt;code&gt;challenge&lt;/code&gt; 的 signature  &lt;/p&gt;
+&lt;p&gt;關於 PKCS#1 v1.5 的攻擊最早由 &lt;strong&gt;Bleichenbacher&lt;/strong&gt; 提出&lt;sup id="fnref-Bleichenbacher"&gt;&lt;a class="footnote-ref" href="#fn-Bleichenbacher"&gt;3&lt;/a&gt;&lt;/sup&gt; (疑似是這題的出題者)&lt;br&gt;
+其中一種方式是 &lt;strong&gt;Chosen Cipher Attacks&lt;/strong&gt;&lt;br&gt;
+後來有人把各種因為實作上的缺陷而產生的攻擊方式整理成一篇論文&lt;sup id="fnref-sigflaw"&gt;&lt;a class="footnote-ref" href="#fn-sigflaw"&gt;4&lt;/a&gt;&lt;/sup&gt;  &lt;/p&gt;
+&lt;p&gt;由於本題沒有給 server 端的 source code&lt;br&gt;
+因此我們不曉得條件 2 是因為如何實作而導致的&lt;br&gt;
+準確地說，我們甚至不能確定條件 2 是否存在&lt;br&gt;
+因此只能靠猜測的方式，亂送各種因為實作上缺陷而可以偽造的 signature 給 server  &lt;/p&gt;
+&lt;p&gt;以下是可能的幾種實作缺陷：&lt;/p&gt;
+&lt;h3&gt;1. Bleichenbacher’s Low-Exponent Attack&lt;/h3&gt;
+&lt;p&gt;此方式是最早提出的攻擊手段&lt;br&gt;
+原因是實作時沒有驗證是否有額外的資料在 &lt;code&gt;hash(m)&lt;/code&gt; 之後&lt;br&gt;
+假設題目是此種實作缺陷，可以送這種格式讓 server 解密：&lt;br&gt;
+&lt;code&gt;0001 + ff*91 + 00 + ASN.1 + hash(m) + evil&lt;/code&gt;&lt;br&gt;
+由於 evil 是在放在 payload 的最後，有很大的機率可以將 payload 補成一個立方數&lt;br&gt;
+不過此題不是這種實作缺陷&lt;br&gt;
+這種攻擊方式要在 key 長度在 3072 以上才保證一定成功&lt;br&gt;
+1024 會有無法成功補成立方數的可能  &lt;/p&gt;
+&lt;h3&gt;2. Variants for Smaller RSA Moduli&lt;/h3&gt;
+&lt;p&gt;此方式是因為沒有正確檢查 &lt;code&gt;EB&lt;/code&gt; 的長度&lt;br&gt;
+由於 &lt;code&gt;ASN.1&lt;/code&gt; 長度不固定的原因&lt;br&gt;
+有些實作方式不會正確檢查 ff 的個數&lt;br&gt;
+只檢查總長度為 8 的倍數&lt;br&gt;
+因此我們有機會透過調整 ff 的個數把 payload 控制成一個立方數&lt;br&gt;
+不過這題也不是考這種利用方式&lt;br&gt;
+試了一下在此題結尾必須是 &lt;code&gt;md5("challenge")&lt;/code&gt; 的情況下&lt;br&gt;
+不管怎麼刪減都沒辦法做出有效的 payload  &lt;/p&gt;
+&lt;h3&gt;3. Exploiting the Algorithm Parameters Field&lt;/h3&gt;
+&lt;p&gt;最早被提出是在 CVE-2006-4339&lt;sup id="fnref-cve-2006-4339"&gt;&lt;a class="footnote-ref" href="#fn-cve-2006-4339"&gt;5&lt;/a&gt;&lt;/sup&gt;，GnuTLS 的實作缺陷&lt;br&gt;
+GnuTLS 在某段程式碼中假設傳進來的 payload 一定是用 md5 做 hash 的 &lt;code&gt;EB&lt;/code&gt;&lt;br&gt;
+完全沒有檢查 &lt;code&gt;ASN.1&lt;/code&gt; 的內容是否正確&lt;br&gt;
+因此可以透過調整 &lt;code&gt;ASN.1&lt;/code&gt; 欄位的內容讓 EB 變成一個立方數&lt;br&gt;
+論文中衍伸了 CVE-2006-4339 提到的攻擊手法&lt;br&gt;
+並將條件改成有分段檢查 &lt;code&gt;ASN.1&lt;/code&gt; 的欄位&lt;br&gt;
+問題變成可以用不同的 hash 算法混淆判斷來製造立方數&lt;br&gt;
+這題我嘗試了 &lt;code&gt;CVE-2006-4339&lt;/code&gt; 的實作缺陷，也不成功&lt;br&gt;
+論文提到的衍伸方式利用條件太嚴謹了，看起來這題就做不到 XD  &lt;/p&gt;
+&lt;h3&gt;4. Attack Variant against the Netscape Security Services&lt;/h3&gt;
+&lt;p&gt;這個實作缺陷最早是發現在 NSS 的原始碼&lt;br&gt;
+原因跟 2. 有點類似，但是變成完全不檢查 ff&lt;br&gt;
+由於 PKCS#1 v1.5 是向右對齊&lt;br&gt;
+NSS 的實作方式從右邊檢查完 &lt;code&gt;hash(m)&lt;/code&gt;、&lt;code&gt;ASN.1&lt;/code&gt; 以後&lt;br&gt;
+就檢查是否用 &lt;code&gt;00&lt;/code&gt; 分隔和 &lt;code&gt;0001&lt;/code&gt; 結尾&lt;br&gt;
+因此可以送以下格式的 payload 來偽造：&lt;br&gt;
+&lt;code&gt;0001 + 00 + evil + hash(m)&lt;/code&gt;&lt;br&gt;
+&lt;strong&gt;python-rsa&lt;/strong&gt; 也有發生過類似的問題 CVE-2016-1494&lt;sup id="fnref-cve-2016-1494"&gt;&lt;a class="footnote-ref" href="#fn-cve-2016-1494"&gt;6&lt;/a&gt;&lt;/sup&gt;&lt;br&gt;
+差別是有多檢查 &lt;code&gt;ASN.1&lt;/code&gt;，因此要改成送這樣的格式：&lt;br&gt;
+&lt;code&gt;0001 + 00 + evil + ASN.1 + hash(m)&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;本題考的是 CVE-2016-1494&lt;br&gt;
+比賽中我也有嘗試這種做法...不過我是拿別人的 code 來改的
+不確定是原本就寫錯了，還是我改壞了&lt;br&gt;
+我沒辦法在 message 是 &lt;code&gt;challenge&lt;/code&gt; 的情況找出一組成功的解 Orz&lt;br&gt;
+我就以為不是考這個了...&lt;br&gt;
+比賽完自己重寫一遍，就有成功解出 flag 了 = =  &lt;/p&gt;
+&lt;p&gt;在實作時有很重要的一點是，由於數字很大&lt;br&gt;
+基本上不可能一個一個數字去試是不是立方數&lt;br&gt;
+要透過 bit 枚舉的方式快速找出後綴符合 &lt;code&gt;ASN.1 + hash(m)&lt;/code&gt; 的數字&lt;br&gt;
+然後用二分法找前綴符合 &lt;code&gt;000100&lt;/code&gt; 開頭的數字&lt;br&gt;
+就可以解出 flag 了&lt;br&gt;
+解完後往 server 送，server 就會吐 flag 在網頁上了  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;CTF{zx2fn265ll7}&lt;/code&gt;&lt;/p&gt;
+&lt;div class="footnote"&gt;
+&lt;hr&gt;
+&lt;ol&gt;
+&lt;li id="fn-rfc2313"&gt;
+&lt;p&gt;PKCS #1: RSA Encryption, &lt;a href="https://tools.ietf.org/html/rfc2313"&gt;https://tools.ietf.org/html/rfc2313&lt;/a&gt;&amp;#160;&lt;a class="footnote-backref" href="#fnref-rfc2313" title="Jump back to footnote 1 in the text"&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn-asn1"&gt;
+&lt;p&gt;Abstract Syntax Notation One，定義於 X.208&amp;#160;&lt;a class="footnote-backref" href="#fnref-asn1" title="Jump back to footnote 2 in the text"&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn-Bleichenbacher"&gt;
+&lt;p&gt;&lt;a href="http://archiv.infsec.ethz.ch/education/fs08/secsem/bleichenbacher98.pdf"&gt;http://archiv.infsec.ethz.ch/education/fs08/secsem/bleichenbacher98.pdf&lt;/a&gt;&amp;#160;&lt;a class="footnote-backref" href="#fnref-Bleichenbacher" title="Jump back to footnote 3 in the text"&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn-sigflaw"&gt;
+&lt;p&gt;&lt;a href="https://www.cdc.informatik.tu-darmstadt.de/reports/reports/sigflaw.pdf"&gt;https://www.cdc.informatik.tu-darmstadt.de/reports/reports/sigflaw.pdf&lt;/a&gt;&amp;#160;&lt;a class="footnote-backref" href="#fnref-sigflaw" title="Jump back to footnote 4 in the text"&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn-cve-2006-4339"&gt;
+&lt;p&gt;&lt;a href="https://lists.gnupg.org/pipermail/gnutls-dev/2006-September/001240.html"&gt;https://lists.gnupg.org/pipermail/gnutls-dev/2006-September/001240.html&lt;/a&gt;&amp;#160;&lt;a class="footnote-backref" href="#fnref-cve-2006-4339" title="Jump back to footnote 5 in the text"&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li id="fn-cve-2016-1494"&gt;
+&lt;p&gt;&lt;a href="https://blog.filippo.io/bleichenbacher-06-signature-forgery-in-python-rsa/"&gt;https://blog.filippo.io/bleichenbacher-06-signature-forgery-in-python-rsa/&lt;/a&gt;&amp;#160;&lt;a class="footnote-backref" href="#fnref-cve-2016-1494" title="Jump back to footnote 6 in the text"&gt;&amp;#8617;&lt;/a&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/div&gt;</content><category term="PKCS#1 v1.5"></category><category term="RSA"></category><category term="CVE"></category><category term="Google CTF"></category></entry><entry><title>SECCON 2016 Binary+Crypto 200 Lost Decryption</title><link href="https://ddaa.tw/seccon_re+crypto_200_lostdecryption.html" rel="alternate"></link><published>2016-12-13T02:43:00+08:00</published><updated>2016-12-13T02:43:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2016-12-13:/seccon_re+crypto_200_lostdecryption.html</id><summary type="html">&lt;p&gt;這題是 pwn 題被大家掃光之後&lt;br&gt;
+不得以之下只好來看的題目...&lt;br&gt;
+Crypto is so difficult. Orz&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目給了三個檔案 &lt;strong&gt;cipher&lt;/strong&gt;, &lt;strong&gt;libencrypt.so&lt;/strong&gt;, &lt;strong&gt;flag.enc&lt;/strong&gt;&lt;br&gt;
+cipher 沒辦法執行, 會噴出以下 error:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;./cipher: error while loading shared libraries: libdecrypt.so: cannot open shared object file: No such file or directory&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;把 cipher 丟到 ida pro 以後可以大致分析出行為:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Usage: cipher (encrypt|decrypt) key input output …&lt;/li&gt;&lt;/ol&gt;</summary><content type="html">&lt;p&gt;這題是 pwn 題被大家掃光之後&lt;br&gt;
+不得以之下只好來看的題目...&lt;br&gt;
+Crypto is so difficult. Orz&lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目給了三個檔案 &lt;strong&gt;cipher&lt;/strong&gt;, &lt;strong&gt;libencrypt.so&lt;/strong&gt;, &lt;strong&gt;flag.enc&lt;/strong&gt;&lt;br&gt;
+cipher 沒辦法執行, 會噴出以下 error:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;./cipher: error while loading shared libraries: libdecrypt.so: cannot open shared object file: No such file or directory&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;把 cipher 丟到 ida pro 以後可以大致分析出行為:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Usage: cipher (encrypt|decrypt) key input output&lt;/li&gt;
+&lt;li&gt;可以藉由第二個參數選擇要加密還是解密, 分別會 call &lt;code&gt;encrypt(buf, key)&lt;/code&gt; 或 &lt;code&gt;decrypt(buf, key)&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;加密的方式是 block cipher, block size = key length = 16 byte&lt;/li&gt;
+&lt;li&gt;依序將加密或解密後的結果寫進 output file&lt;/li&gt;
+&lt;li&gt;如果 input 不是 16 的倍數, 最後會補上 padding&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;這題的關鍵還是在 libencrypt.so 上, 裡面只有一個加密 function&lt;br&gt;
+encrypt 會做 14 次 xor, xor key 由一個亂七八糟的 function 產生&lt;br&gt;
+xor 完會將 block 的前半和後半做交換  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;258 void __fastcall encrypt(char *buf, char *key)
+...
+273   do
+274   {
+275     v5 = sub_8a0(b1, k1);
+276     b0 ^= v5;
+277     k1 = sub_8a0(k1, 0x9104F95DE694DC50LL);
+278     xchg(&amp;amp;b0);
+279     xchg(&amp;amp;k0);
+280     --i;
+281   }
+282   while ( i );
+...
+286 }
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;如果有修過密碼學, 應該一眼就可以感覺出這是典型的 &lt;strong&gt;feistel cipher&lt;/strong&gt;&lt;br&gt;
+feistel cipher 的特徵就是解密就是加密的倒過來&lt;br&gt;
+所以這題其實不用看懂 &lt;code&gt;sub_8a0&lt;/code&gt; 到底在做什麼&lt;br&gt;
+直接拿來用就可以了&lt;br&gt;
+k1 就是 feistel cipher 的 round key, 用來產生 xor 用的 key&lt;br&gt;
+round key 不受 cipher 影響, 可以跑 14 round 得到所有的 round key&lt;br&gt;
+可以用 ida pro decompile &lt;code&gt;sub_8a0&lt;/code&gt; 寫一個解密的 function:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;void decrypt(int *buf)
+{
+    __int64 k1[14] = {0x7071370944faa683, 0xc936fe92f5be592, 0xfb865e2b2a6216f, 0x89745418b4f3701d, 0xfa8b683d8876468f, 0xe2185b1aa6ace4c2, 0xf6f840cc5548b290, 0xeb42f12db34bcecc, 0xe3459923a1fadfda, 0x3ac1150762625475, 0xccb7b4ad260cfb29, 0xb2007c75f4bad138, 0x8850ec377c7449b6 , 0x1ba31bdc8631ecd6};
+
+    int b[2] = {buf[0], buf[1]};
+    xchg(&amp;amp;b);
+    for (int i = 13; i &amp;gt;= 0; i--) {
+        xchg(&amp;amp;b);
+        b[0] ^= sub_8a0(b[1], k1[i]);
+    }
+    xchg(&amp;amp;b);
+    buf[0] = b[0];
+    buf[1] = b[1];
+ }
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;編譯成執行檔後, 就可以拿來 decrypt flag.enc 的內容了  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;SECCON{Decryption_Of_Feistel_is_EASY!}&lt;/code&gt;&lt;/p&gt;</content><category term="SECCON CTF"></category><category term="Feistel Cipher"></category></entry><entry><title>HITCON CTF 2016 crypto 150 OTP</title><link href="https://ddaa.tw/hitcon_crypto_150_otp.html" rel="alternate"></link><published>2016-10-13T20:13:00+08:00</published><updated>2016-10-13T20:13:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2016-10-13:/hitcon_crypto_150_otp.html</id><summary type="html">&lt;p&gt;Sovled: 12 / 1024&lt;/p&gt;
+&lt;p&gt;今年是第一次以出題方的身分參加 HITCON CTF&lt;br&gt;
+一直很擔心自己的題目不夠水準&lt;br&gt;
+有一點低估自己的題目難度了&lt;br&gt;
+以解題人數來看, 這題應該可以加到 200 分  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;otp 的行為是接收使用者的明文&lt;br&gt;
+隨機產生一組長度等於 明文 + flag 的 xor key&lt;br&gt;
+透過 xor 加密 明文 + flag 並回傳給使用者&lt;br&gt;
+並且可以選擇透過何種方式產生 xor key  &lt;/p&gt;
+&lt;p&gt;這題主要考的是 &lt;strong&gt;CVE-2016-6316&lt;/strong&gt;&lt;br&gt;
+libgcrypt 實作 PRNG 有缺陷&lt;br&gt;
+導致每獲得 580 byte 之後, 就可以算出接下來的 20 byte&lt;br&gt;
+在取得 random number 以後, 都會取目前 random pool 的部分內容做 …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Sovled: 12 / 1024&lt;/p&gt;
+&lt;p&gt;今年是第一次以出題方的身分參加 HITCON CTF&lt;br&gt;
+一直很擔心自己的題目不夠水準&lt;br&gt;
+有一點低估自己的題目難度了&lt;br&gt;
+以解題人數來看, 這題應該可以加到 200 分  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;otp 的行為是接收使用者的明文&lt;br&gt;
+隨機產生一組長度等於 明文 + flag 的 xor key&lt;br&gt;
+透過 xor 加密 明文 + flag 並回傳給使用者&lt;br&gt;
+並且可以選擇透過何種方式產生 xor key  &lt;/p&gt;
+&lt;p&gt;這題主要考的是 &lt;strong&gt;CVE-2016-6316&lt;/strong&gt;&lt;br&gt;
+libgcrypt 實作 PRNG 有缺陷&lt;br&gt;
+導致每獲得 580 byte 之後, 就可以算出接下來的 20 byte&lt;br&gt;
+在取得 random number 以後, 都會取目前 random pool 的部分內容做 hash&lt;br&gt;
+再存回 random pool 打亂 entropy&lt;br&gt;
+原本演算法的設計是取 &lt;code&gt;pool[L-40:L+44]&lt;/code&gt;&lt;br&gt;
+但 libgcrypt 在實作時卻取了 &lt;code&gt;pool[L-40:L-20] + pool[L:L+44]&lt;/code&gt;&lt;br&gt;
+中間漏掉了一個 block, 導致在不需知道全部的 pool 的情況下&lt;br&gt;
+就可以算出 next state&lt;br&gt;
+詳細的原理在這篇: &lt;a href="http://formal.iti.kit.edu/~klebanov/pubs/libgcrypt-cve-2016-6313.pdf"&gt;Entropy Loss and Output Predictability in theLibgcrypt PRNG&lt;/a&gt;  &lt;/p&gt;
+&lt;p&gt;文章中沒有詳細描述 libgcrypt 的 hash method&lt;br&gt;
+需要自行 trace libgcrypt source code&lt;br&gt;
+根據文件指出的 &lt;code&gt;mix_pool&lt;/code&gt;, 會發現以下的程式碼&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt; 603   gcry_assert (pool_is_locked);
+ 604   _gcry_sha1_mixblock_init (&amp;amp;md);
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;因此可以得知實作時是用 sha1 做 hash&lt;br&gt;
+並且是透過 update 的方式取得 sha1 的結果&lt;br&gt;
+我一開始沒看仔細, 實作 poc 的時候一直以為是每次取新的 sha1&lt;br&gt;
+卡了一小段時間 Orz&lt;/p&gt;
+&lt;p&gt;得知以上幾點之後, 就可以開始解這題了&lt;br&gt;
+步驟如下:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;加密時輸入長度為 580 byte 的明文, 接收到 580 + n byte 的密文&lt;/li&gt;
+&lt;li&gt;將明文和密文的前 580 byte xor, 得到 xor key 的前 580 byte, 也就是加密第 29 個 block 時, random pool 的 state&lt;/li&gt;
+&lt;li&gt;計算 &lt;code&gt;sha1_update(xorkey[560:580] + xorkey[0:44])&lt;/code&gt;, 結果即是第 30 個 block 的 state&lt;/li&gt;
+&lt;li&gt;由於我們不知道 random pool 最早的狀態, 不能每個 block 陸續做 &lt;code&gt;sha1_update&lt;/code&gt; 得到目前的 state&lt;/li&gt;
+&lt;li&gt;要利用類似 length extension attack 的手法, 將初始的常數換成上一次 sha1 的結果, 也就是 &lt;code&gt;xorkey[560:580]&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;將計算出的結果與密文 xor, 可以得到 flag 的前 20 byte&lt;/li&gt;
+&lt;li&gt;再次加密, 這次長度輸入 560 byte, 由於我們已經知道 flag 的前 20 byte, 因此一樣可以算出 580 byte 的 xor key&lt;/li&gt;
+&lt;li&gt;重做 2 ~ 4 步驟就可以得到 flag 剩下的部分&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;a href="https://ddaa.tw/exp/otp.py"&gt;otp.py&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;hitcon{N0_n33d_t0_rev0k3_pr1v4te_k3y}&lt;/code&gt;&lt;/p&gt;</content><category term="PRNG"></category><category term="CVE"></category></entry><entry><title>BCTF 2016 crypto 200 Special RSA</title><link href="https://ddaa.tw/bctf_crypto_200_special_rsa.html" rel="alternate"></link><published>2016-03-21T20:13:00+08:00</published><updated>2016-03-21T20:13:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2016-03-21:/bctf_crypto_200_special_rsa.html</id><summary type="html">&lt;p&gt;這題是很基本的 crypto 題目&lt;br&gt;
+從有 94 隊解就知道了...= =&lt;br&gt;
+不過我還是想了好久 QQ&lt;br&gt;
+對現代密碼學實在不太擅長&lt;br&gt;
+這次一邊解一邊研究模運算&lt;br&gt;
+趁記憶深刻趕快寫這篇 write-up  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目雖然叫 &lt;strong&gt;Special RSA&lt;/strong&gt; 但是這題跟 RSA 其實沒有很大關連...&lt;br&gt;
+還比較像 ElGamel encryption = =&lt;br&gt;
+害我還跑去看 ElGamel 有什麼弱點 囧  &lt;/p&gt;
+&lt;p&gt;題目給了四個檔案:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;special_rsa.py&lt;/li&gt;
+&lt;li&gt;msg.txt&lt;/li&gt;
+&lt;li&gt;msg.enc&lt;/li&gt;
+&lt;li&gt;flag.enc&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;special_rsa.py&lt;/code&gt; 有 usage, 真好心 XD &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;dada@ubuntu:~/bctf/special_rsa$ ./special_rsa.py&lt;br&gt;
+usage: ./special_rsa.py enc …&lt;/p&gt;&lt;/blockquote&gt;</summary><content type="html">&lt;p&gt;這題是很基本的 crypto 題目&lt;br&gt;
+從有 94 隊解就知道了...= =&lt;br&gt;
+不過我還是想了好久 QQ&lt;br&gt;
+對現代密碼學實在不太擅長&lt;br&gt;
+這次一邊解一邊研究模運算&lt;br&gt;
+趁記憶深刻趕快寫這篇 write-up  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目雖然叫 &lt;strong&gt;Special RSA&lt;/strong&gt; 但是這題跟 RSA 其實沒有很大關連...&lt;br&gt;
+還比較像 ElGamel encryption = =&lt;br&gt;
+害我還跑去看 ElGamel 有什麼弱點 囧  &lt;/p&gt;
+&lt;p&gt;題目給了四個檔案:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;special_rsa.py&lt;/li&gt;
+&lt;li&gt;msg.txt&lt;/li&gt;
+&lt;li&gt;msg.enc&lt;/li&gt;
+&lt;li&gt;flag.enc&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;special_rsa.py&lt;/code&gt; 有 usage, 真好心 XD &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;dada@ubuntu:~/bctf/special_rsa$ ./special_rsa.py&lt;br&gt;
+usage: ./special_rsa.py enc|dec input.file output.file  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;加密會把 input 切成很多個 block, 每個 256 byte&lt;br&gt;
+每個 block 轉成 數字在用以下公式加密:  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;c = (pow(k, r, N) * m) % N&lt;/code&gt;  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;c = cipher, m = plain, m &amp;lt; N&lt;br&gt;
+r = random number, N = big prime&lt;br&gt;
+r 會跟 c 包在一起再用 msgpack 打包&lt;br&gt;
+k 沒有給...給了這題就不用解了 XD  &lt;/p&gt;
+&lt;p&gt;解密有兩步驟:  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;k_inv = modinv(k, N)&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;&lt;code&gt;m = pow(k_inv, r, N) * c % N&lt;/code&gt;  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;code&gt;k_inv&lt;/code&gt; 是 k 的模反元素   &lt;/p&gt;
+&lt;p&gt;解密的原理是:   &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;    pow(k_inv, r, N) * c % N
+=   pow(k_inv, r, N) * ((pow(k, r, N) * m) % N) % N
+=   (pow(k_inv, r, N) % N) * ((pow(k, r, N) * m) % N) % N   // pow(k_inv, r, N) = pow(k_inv, r, N) % N
+=   pow(k_inv, r, N) * (pow(k, r, N) * m) % N               // (a % N * b % N) % N = a * b % N
+=   pow(k_inv * k, r, N) * m % N                            // (a * b) ^ r % N = (a ^ r % N) * (b ^ r % N) % N
+=   pow(1, r, N) * m % N                                    // k * k_inv % N = 1
+=   m % N                                                   // m &amp;lt; N
+=   m
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;模運算有幾個重要的特性:  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;% 運算子優先度最後  &lt;/li&gt;
+&lt;li&gt;滿足加法律  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;a + b % N = (a % N + b % N) % N&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;減法等同加上倒數, 因此也滿足減法  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;a - b % N = (a % N - b % N) % N&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;乘法等於連加, 因此滿足乘法  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;a * b % N = (a % N * b % N) % N&lt;/code&gt;  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;除法等同乘上倒數, 倒數就是模反元素  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;a * b_inv % N = (a % N / b % N) % N&lt;/code&gt;  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;指數等於連乘, 因此滿足指數律 (&lt;code&gt;^&lt;/code&gt; 表示平方)  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;(a * b) ^ r % N = (a ^ r % N) * (b ^ r % N) % N&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;&lt;code&gt;(a - b) ^ r % N = (a ^ r % N) / (b ^ r % N) % N&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;&lt;code&gt;g ^ (a + b) % N = (g ^ a % N) * (g ^ b % N) % N&lt;/code&gt;  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;任何數乘上模反元素的餘數會是 1&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;a * a_inv % N = 1&lt;/code&gt; &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;我們已知 &lt;code&gt;m&lt;/code&gt;, &lt;code&gt;r&lt;/code&gt;, &lt;code&gt;N&lt;/code&gt;, 利用模運算的特性&lt;br&gt;
+我們可以反推出 &lt;code&gt;k&lt;/code&gt; 的值  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;求 m 的模反元素  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;m_inv = modinv(m, N)&lt;/code&gt;  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;將 c 乘上模反元素得到 pow(k, r, N)  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;c * m_inv % N = pow(k, r, N) % N = pow(k, r, N)&lt;/code&gt;  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;msg.enc&lt;/code&gt; 有兩個 block, 重複兩次得到 pow(k, r1, N), pow(k, r2, N)  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;p1 = c1 * m_inv % N = pow(k, r1, N) % N = pow(k, r1, N)&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;&lt;code&gt;p2 = c2 * m_inv % N = pow(k, r2, N) % N = pow(k, r2, N)&lt;/code&gt;  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;由於底數相同, p1 &amp;amp; p2 可以做指數的加減法, 目標是求出 pow(k, 1, N)  &lt;ul&gt;
+&lt;li&gt;&lt;code&gt;pow(k, 1, N) = k&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;問題變成: &lt;code&gt;r1 * z1 + r2 * z2 = 1&lt;/code&gt;, 解 z1 &amp;amp; z2  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Extended Euclid Algorithm&lt;/strong&gt; 可以解此問題&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;egcd(r1, r2) = [gcd(r1, r2), z1, r2]&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;剛好 gcd(r1, r2) = 1  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;把 z1, z2 代回解 &lt;code&gt;pow(k, r1 * z1 + r2 * z2, N)&lt;/code&gt; 即可求得 k  &lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;a href="https://ddaa.tw/exp/special_rsa.py"&gt;POC&lt;/a&gt;  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;BCTF{q0000000000b3333333333-ju57-w0n-pwn20wn!!!!!!!!!!!!}&lt;/code&gt;&lt;/p&gt;</content><category term="XCTF"></category><category term="RSA"></category></entry><entry><title>ASIS CTF Crypto 150 Random Image</title><link href="https://ddaa.tw/asisctf_crypto_150_random_image.html" rel="alternate"></link><published>2014-05-16T22:16:00+08:00</published><updated>2014-05-16T22:16:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-05-16:/asisctf_crypto_150_random_image.html</id><summary type="html">&lt;p&gt;I didn't spend a lot of time at this CTF because I need to present my project about openstack. 217 is very powerful. When I joined the game, most of problems have been solved. I tried to solve the problem &lt;strong&gt;easy reading&lt;/strong&gt;, but finally it was fruitless. (Nobody solved it …&lt;/p&gt;</summary><content type="html">&lt;p&gt;I didn't spend a lot of time at this CTF because I need to present my project about openstack. 217 is very powerful. When I joined the game, most of problems have been solved. I tried to solve the problem &lt;strong&gt;easy reading&lt;/strong&gt;, but finally it was fruitless. (Nobody solved it.)  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;First, we downloaded the picture &lt;code&gt;enc.png&lt;/code&gt; from problem. That is a black-and-white picture. Besite the picture, there is an encrypt program that is written by python.&lt;br&gt;
+&lt;img alt="enc.png" src="https://ddaa.tw/images/asisctf_2014_randomimage_1.png"&gt;  &lt;/p&gt;
+&lt;p&gt;Observate the program, it loaded an image file into the object. Then the program created another imgae object that had the same size with the last one. After creating the object, the program filled the image with color from 0 to 249.  &lt;/p&gt;
+&lt;p&gt;In following of codes, the program compared each pixel of original picture. If the color of pixel is smaller than 250, it will call &lt;code&gt;get_color()&lt;/code&gt; to calculate other value and stored it into new image. Therefor, the other pixels are the pattern of the flag.  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;def get_color(x, y, r):
+  n = (pow(x, 3) + pow(y, 3)) ^ r
+  return (n ^ ((n &amp;gt;&amp;gt; 8) &amp;lt;&amp;lt; 8 ))
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;&lt;code&gt;r&lt;/code&gt; is a random number from 1 to 2^256. However, after computing by &lt;code&gt;get_color&lt;/code&gt;, it only had 256 values. We search a pixel with value bigger than 250, then try 256 times to break &lt;code&gt;r&lt;/code&gt;.  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;def get_r(e,x,y):
+    for r in range(256):
+        if get_color(x,y,r) == e:
+            return r
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;Once we get the value of &lt;code&gt;r&lt;/code&gt;, we can seperate the flag and other pixels through expression &lt;code&gt;enpix[x,y] == get_color(x,y,r)&lt;/code&gt;.&lt;br&gt;
+&lt;img alt="flag.png" src="https://ddaa.tw/images/asisctf_2014_randomimage_flag.png"&gt;  &lt;/p&gt;</content><category term="Other CTF"></category></entry><entry><title>Plaid CTF 2014 Crypto 250 Parlor</title><link href="https://ddaa.tw/plaidctf_crypto_250_parlor.html" rel="alternate"></link><published>2014-04-17T10:37:00+08:00</published><updated>2014-04-17T10:37:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-04-17:/plaidctf_crypto_250_parlor.html</id><summary type="html">&lt;p&gt;這題是 217 的大大們解出來的&lt;br&gt;
+我知道關鍵後&lt;br&gt;
+隔天才自己做一遍&lt;br&gt;
+寫程式太慢了.........  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題連到目標環境後敘述如下：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;/------------------------------------------------------------------------------\
+| Welcome to the betting parlor!                                               |
+|                                                                              |
+| We implement State of the Art cryptography to give you the fairest and most  |
+| exciting betting experience!                                                 |
+|                                                                              |
+| Here&amp;#39;s how it works: we both pick a nonce, you tell us odds, and you give us |
+| some money.                                                                  |
+| If …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;這題是 217 的大大們解出來的&lt;br&gt;
+我知道關鍵後&lt;br&gt;
+隔天才自己做一遍&lt;br&gt;
+寫程式太慢了.........  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題連到目標環境後敘述如下：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;/------------------------------------------------------------------------------\
+| Welcome to the betting parlor!                                               |
+|                                                                              |
+| We implement State of the Art cryptography to give you the fairest and most  |
+| exciting betting experience!                                                 |
+|                                                                              |
+| Here&amp;#39;s how it works: we both pick a nonce, you tell us odds, and you give us |
+| some money.                                                                  |
+| If md5(our number + your number) % odds == 0, you win bet amount*odds.       |
+| UPDATE: IF YOU DIDN&amp;#39;T REALIZE IT, WE DO INCLUDE A NEWLINE AT THE END OF YOUR |
+| NUMBER. SORRY FOR THE INCONVENIENCE. THANK YOU FOR USING PARLOR              |
+| Otherwise, we get your money! We&amp;#39;re even so nice, we gave you $1000 to start.|
+|                                                                              |
+| If you don&amp;#39;t trust us, we will generate a new nonce, and reveal the old nonce|
+| to you, so you can verify all of our results!                                |
+|                                                                              |
+| (Oh, and if you win a billion dollars, we&amp;#39;ll give you a flag.)               |
+\______________________________________________________________________________/
+
+====================
+  1) set your odds
+  2) set your bet
+  3) play a round
+  4) get balance
+  5) reveal nonce
+  6) quit
+====================
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;規則總結如下：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;設定一個模數 odds&lt;/li&gt;
+&lt;li&gt;下注 bet&lt;/li&gt;
+&lt;li&gt;猜一個數字 your num (之後簡稱num)&lt;/li&gt;
+&lt;li&gt;如果滿足 &lt;code&gt;md5(our num + your num) % odds == 0&lt;/code&gt;, 則獲得 odds * bet 的金額&lt;/li&gt;
+&lt;li&gt;贏得 100w &lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;雖然題目說要我們猜一個數字並與 nonce 相加&lt;br&gt;
+但是將 nonce reveal 出來&lt;br&gt;
+會是一段 hex&lt;br&gt;
+轉為 byte 以後，與 num 相加，做 md5 再 % odds&lt;br&gt;
+可以到相同的結果&lt;br&gt;
+所以其實是字串相加，而不是數字  &lt;/p&gt;
+&lt;p&gt;這題如果能預先算出 md5 的結果&lt;br&gt;
+就能輕鬆獲勝了&lt;br&gt;
+有一種 hash 的攻擊方式叫做 &lt;strong&gt;Length Extension Attack&lt;/strong&gt; (後簡稱 LEA)&lt;br&gt;
+適用於大部分的 hash，如 md5 sha1 sha256&lt;br&gt;
+可以在不知道 text，只知道 hash 過的結果的情況下&lt;br&gt;
+預測 &lt;code&gt;hash(text + padding + suffix)&lt;/code&gt; 的結果  &lt;/p&gt;
+&lt;p&gt;這邊研究了一下 md5 hash 的過程&lt;br&gt;
+首先會切成數個 64 byte 的 block&lt;br&gt;
+最後一個 block 如果不是 56 byte 會做 padding&lt;br&gt;
+padding 的方式是第一個 byte 為 &lt;code&gt;\x80&lt;/code&gt;&lt;br&gt;
+接著填充 &lt;code&gt;\x00&lt;/code&gt;&lt;br&gt;
+最後 8 byte 補上原始長度 (bit)&lt;br&gt;
+接著 md5 會有 4 個初始量  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;a=0x67452301
+b=0xEFCDAB89
+c=0x98BADCFE 
+d=0x10325476
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;接著會以 a b c d 以及 block[i] 為參數&lt;br&gt;
+做一系列的運算&lt;br&gt;
+會得到另外四個值 aa bb cc dd&lt;br&gt;
+並且將 a b c d 與 aa bb cc dd 做相加&lt;br&gt;
+這個過程視為一個 round  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;aa,bb,cc,dd = f(a,b,c,d,block[i])
+a += aa
+b += bb
+c += cc
+d += dd
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;如果後面還有 block 就繼續做運算&lt;br&gt;
+直到沒有 block 為止&lt;br&gt;
+a b c d 的最終值合併後就是 md5 的結果  &lt;/p&gt;
+&lt;p&gt;如果 a b c d 的初始值改變的結果會如何 ?&lt;br&gt;
+LEA 就是利用這點&lt;br&gt;
+如果我們現在已知 &lt;code&gt;md5(nonce + num)&lt;/code&gt; 的結果&lt;br&gt;
+將其結果還原為 a b c d&lt;br&gt;
+並當作 function f 中 a b c d 的初始值&lt;br&gt;
+做一次 &lt;code&gt;f(a,b,c,d,msg)&lt;/code&gt; 的運算&lt;br&gt;
+結果等同於 &lt;code&gt;md5(nonce + num + padding + msg)&lt;/code&gt; &lt;br&gt;
+所以即使不知道 &lt;code&gt;nonce + num&lt;/code&gt;&lt;br&gt;
+也可以預測出結果  &lt;/p&gt;
+&lt;p&gt;Talk is cheap, 先 reveal nonce 判斷是否可行：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;nonce = &amp;quot;760c4a0f8ec61bec304ed4d8d8abeb98&amp;quot;.decode(&amp;#39;hex&amp;#39;)
+num = &amp;#39;a\n&amp;#39;
+md5(nonce + num) = &amp;#39;5b356daa0313063af25f8da01922128d&amp;#39;
+a,b,c,d = md5tonum(md5(nonce + num))
+# nonce = 16, a\n = 2, 所以填充\x80+\x00*37 + len 8, total = 64
+padding = &amp;quot;\x80&amp;quot;+&amp;quot;\x00&amp;quot;*37 + &amp;quot;\x90&amp;quot;+&amp;quot;\x00&amp;quot;*7
+print md5(&amp;#39;a\n&amp;#39;+padding+&amp;#39;b\n&amp;#39;)
+block = [256511094 3961243278 3637792304 2565581784 8391265 0 0 0 0 0 0 0 0 0 144 0 8391266 0 0 0 0 0 0 0 0 0 0 0 0 0 528 0]
+md5: 12b74d8200ff1c84500b1e55ada2ce7e 
+print guess(&amp;#39;b\n&amp;#39;,a,b,c,d,66) # 新的長度是 66 byte
+block = [8391266 0 0 0 0 0 0 0 0 0 0 0 0 0 16 0]
+md5: 12b74d8200ff1c84500b1e55ada2ce7e 
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;剩下的難題就是怎麼樣得到 md5 的結果了&lt;br&gt;
+把 odds 設成 100&lt;br&gt;
+第一次送 'a\n' 得到 r1&lt;br&gt;
+r1 = &lt;code&gt;md5 % 2\*\*100&lt;/code&gt;&lt;br&gt;
+第二次送 'a\n' + padding + 'b\n' 得到 r2&lt;br&gt;
+用 r1 推出 a b c d 並用 LEA 預測結果&lt;br&gt;
+(a 用 brute-force 的方式去試)&lt;br&gt;
+如果結果與 r2 相同&lt;br&gt;
+就代表 a 的值是正確的&lt;br&gt;
+也就得到完整的 md5 了  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;i_dunno_i_ran_out_of_clever_keys&lt;/code&gt;&lt;/p&gt;</content><category term="PlaidCTF"></category><category term="Length Extension Attack"></category></entry><entry><title>Plaid CTF 2014 Crypto 20 twenty</title><link href="https://ddaa.tw/plaidctf_crypto_20_twenty.html" rel="alternate"></link><published>2014-04-15T00:34:00+08:00</published><updated>2014-04-15T00:34:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-04-15:/plaidctf_crypto_20_twenty.html</id><summary type="html">&lt;p&gt;Try using English to write the solution down.&lt;br&gt;
+However, my English is not so good.&lt;br&gt;
+I hope to improve it through this method. :)  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The problem gave us a bzip2 file. We get the cipher in &lt;code&gt;twenty.txt&lt;/code&gt; after extracting it.  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;fvoxoxfvwdepagxmwxfpukleofxhwevefuygzepfvexwfvufgeyfryedojhwffoyhxcwgmlxeylawfxfurwfvoxecfezfvwbecpfpeejuygoyfefvwxfpwwfxojumwuxfuffvwawuxflecaazubwjwoyfvwyepfvwuxfhwfjlopwckaohvfjlzopwoaahevupgwpfvuywjoywjdwyfufjupouvbuaajwuaoupkecygjwoyfvwuxxdofvyeacmwbvuzoyhlecpwzcbroyhdofvfvwgcgwdveheffvwrwlxfelecpxuzwuygfvexwfvufbuyfgempoyhxcofxbplfelecpcybawxujfexwffawgoxkcfwxfvechvflecgfubrawfvoxdofvuaoffawjepwfubfmcffvwyuhuoyzcghwkubrwpxogeyfryediubroxvwgufwupwswplfojwofvoyrezaorxuyhmcfxvofjuyfvwlpwubepkepufoeyuygojukwpxeyozobufoeyezzpwwgejzepuaaleczoaagebrwfxaorwfvufxubeybwkfzepwohyfeluaadvoawaudlwpxjcggldufwpuygfpexxfuaaecfezmcxoywxxoxiuoazepjwuyglecpwxcoyhjwbosoaalwnvomoffvoxoyfvwbecpfpeejheeygeofogupwlecbeyhpufcaufoeyxfvwzauhoxxoybwywdbplkfejohvfvuswyxumubrgeepxocxweagbplkfe&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;I didn't notice this text is encrypted by replacing …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Try using English to write the solution down.&lt;br&gt;
+However, my English is not so good.&lt;br&gt;
+I hope to improve it through this method. :)  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;The problem gave us a bzip2 file. We get the cipher in &lt;code&gt;twenty.txt&lt;/code&gt; after extracting it.  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;fvoxoxfvwdepagxmwxfpukleofxhwevefuygzepfvexwfvufgeyfryedojhwffoyhxcwgmlxeylawfxfurwfvoxecfezfvwbecpfpeejuygoyfefvwxfpwwfxojumwuxfuffvwawuxflecaazubwjwoyfvwyepfvwuxfhwfjlopwckaohvfjlzopwoaahevupgwpfvuywjoywjdwyfufjupouvbuaajwuaoupkecygjwoyfvwuxxdofvyeacmwbvuzoyhlecpwzcbroyhdofvfvwgcgwdveheffvwrwlxfelecpxuzwuygfvexwfvufbuyfgempoyhxcofxbplfelecpcybawxujfexwffawgoxkcfwxfvechvflecgfubrawfvoxdofvuaoffawjepwfubfmcffvwyuhuoyzcghwkubrwpxogeyfryediubroxvwgufwupwswplfojwofvoyrezaorxuyhmcfxvofjuyfvwlpwubepkepufoeyuygojukwpxeyozobufoeyezzpwwgejzepuaaleczoaagebrwfxaorwfvufxubeybwkfzepwohyfeluaadvoawaudlwpxjcggldufwpuygfpexxfuaaecfezmcxoywxxoxiuoazepjwuyglecpwxcoyhjwbosoaalwnvomoffvoxoyfvwbecpfpeejheeygeofogupwlecbeyhpufcaufoeyxfvwzauhoxxoybwywdbplkfejohvfvuswyxumubrgeepxocxweagbplkfe&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;I didn't notice this text is encrypted by replacing at first because there are not blanks or other symbols. I had no idea to solve it until jeffxx tell me &lt;code&gt;fvox&lt;/code&gt; = &lt;code&gt;this&lt;/code&gt;.  &lt;/p&gt;
+&lt;p&gt;The usual way to break &lt;strong&gt;Substitution cipher&lt;/strong&gt; is find some repeat patterns in cipher. The patterns usually present a word in natual language, such as &lt;code&gt;the&lt;/code&gt;,&lt;code&gt;this&lt;/code&gt;, &lt;code&gt;in&lt;/code&gt; ... etc. The more pattern we can find, the more character we get.  &lt;/p&gt;
+&lt;p&gt;However, this cipher does not have any blank or other symbols. It is hard to identify which pattern is the word. Therefore, I used a regular expression dictionary to assist me find a word that match the pattern.  &lt;/p&gt;
+&lt;p&gt;For example, after we substituted 'fvoxw' to &lt;code&gt;thise&lt;/code&gt;, we could get a part of plain as below: (The capital letters were substituted.)  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;THISISTHEdepagSmESTpukleITShEeHeTuygzepTHeSETHuTgeyTryedIjhETTIyhScEgmlSeylaETSTurETHISecTe&lt;br&gt;
+zTHEbecpTpeejuygIyTeTHESTpEETSIjumEuSTuTTHEaEuSTlecaazubEjEIyTHEyepTHEuSThETjlIpEckaIhHTjlzI&lt;br&gt;
+pEIaaheHupgEpTHuyEjIyEjdEyTuTjupIuHbuaajEuaIupkecygjEIyTHEuSSdITHyeacmEbHuzIyhlecpEzcbrIyhdI&lt;br&gt;
+....  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Observing the text, we could find some duplicate patterns, like &lt;code&gt;THeSE&lt;/code&gt;, &lt;code&gt;STpEET&lt;/code&gt;. I guessed that means &lt;code&gt;those&lt;/code&gt;, &lt;code&gt;street&lt;/code&gt;. If not sure which words match the pattern, we can use dictionary to search possible words. We could get &lt;code&gt;o&lt;/code&gt; and &lt;code&gt;r&lt;/code&gt;, and substitute them to cipher again.  &lt;/p&gt;
+&lt;p&gt;We could use &lt;strong&gt;google&lt;/strong&gt; to search sentences after some characters were substiuted. Finally, I found the plaintext was a lyrics of rap from youtube ([https://www.youtube.com/watch?v=9iUvuaChDEg]). And the last sentence is &lt;strong&gt;CONGRATULATIONSTHEFLAGISSINCENEWCRYPTOMIGHTHAVENSABACKDOORSIUSEOLDCRYPTO&lt;/strong&gt;.  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;sincenewcryptomighthavensabackdoorsiuseoldcrypto&lt;/code&gt;&lt;/p&gt;</content><category term="PlaidCTF"></category><category term="Substitution Cipher"></category></entry><entry><title>VolgaCTF 2014 Crypto 100 Crypto100</title><link href="https://ddaa.tw/volgactf_crypto_100_crypto100.html" rel="alternate"></link><published>2014-03-31T01:14:00+08:00</published><updated>2014-03-31T01:14:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-03-31:/volgactf_crypto_100_crypto100.html</id><summary type="html">&lt;p&gt;crypto 只有解出 100 分而已&lt;br&gt;
+其他都沒解出來...&lt;br&gt;
+早知道去解別題了 ORZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;密文是一個超級大的數字...  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;190569475701019412937705231680700513465015462478574872080026036707049434285377110377581884338050290774147519326077986327023814459562710938989987601622114027649584411501029597442404380535706287506751810630518137180840386095680950172667823654745784065
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;題目還有給一個遠端的加密程式&lt;br&gt;
+試了一下規則有：  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;非英文字母都 = 1 &lt;/li&gt;
+&lt;li&gt;英文字母不分大小寫&lt;/li&gt;
+&lt;li&gt;a=4, b=9, c=25, d=49, ..., z=10201&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;很輕易可以看出來對應的數字就是質數的平方&lt;br&gt;
+但是如果兩個字元以上就還有一些變化&lt;br&gt;
+ex： &lt;em&gt;a=4, aa=32, aaa=1024, aaaa=131072&lt;/em&gt;&lt;br&gt;
+收集一些密文後可以推得遞迴式：  &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;F(d) = F(d-1) * prime[c] ^ 2 * prime[c] ^ prime[d]&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;prime[] = 質數陣列, 2 …&lt;/li&gt;&lt;/ul&gt;</summary><content type="html">&lt;p&gt;crypto 只有解出 100 分而已&lt;br&gt;
+其他都沒解出來...&lt;br&gt;
+早知道去解別題了 ORZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;密文是一個超級大的數字...  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;190569475701019412937705231680700513465015462478574872080026036707049434285377110377581884338050290774147519326077986327023814459562710938989987601622114027649584411501029597442404380535706287506751810630518137180840386095680950172667823654745784065
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;題目還有給一個遠端的加密程式&lt;br&gt;
+試了一下規則有：  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;非英文字母都 = 1 &lt;/li&gt;
+&lt;li&gt;英文字母不分大小寫&lt;/li&gt;
+&lt;li&gt;a=4, b=9, c=25, d=49, ..., z=10201&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;很輕易可以看出來對應的數字就是質數的平方&lt;br&gt;
+但是如果兩個字元以上就還有一些變化&lt;br&gt;
+ex： &lt;em&gt;a=4, aa=32, aaa=1024, aaaa=131072&lt;/em&gt;&lt;br&gt;
+收集一些密文後可以推得遞迴式：  &lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;F(d) = F(d-1) * prime[c] ^ 2 * prime[c] ^ prime[d]&lt;/code&gt;  &lt;/li&gt;
+&lt;li&gt;prime[] = 質數陣列, 2, 3, 5, ...  &lt;/li&gt;
+&lt;li&gt;d = 第 d 個字元  &lt;/li&gt;
+&lt;li&gt;c = 字元 (ex: a = 0, b = 1, c = 2, ...)  &lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;ex : &lt;em&gt;aaa = 32 (aa 的 值) * 4 (a 對應的值) * 2 ^ 5 (3rd prime) = 1024&lt;/em&gt;  &lt;/p&gt;
+&lt;p&gt;我們可以把 cipher 做&lt;strong&gt;因式分解&lt;/strong&gt;&lt;br&gt;
+所包含的質數就代表 plain 包含該字元&lt;br&gt;
+並且計算其次方&lt;br&gt;
+如果 &lt;em&gt;次方 - 2&lt;/em&gt; 是質數&lt;br&gt;
+就表示是該字元只出現過一次  &lt;/p&gt;
+&lt;p&gt;至此也就只能分析出用上的字元有 &lt;em&gt;a c e i l m n o p q r s t u v&lt;/em&gt;&lt;br&gt;
+以及第三個字元是 &lt;em&gt;q&lt;/em&gt;&lt;br&gt;
+某個字元是 &lt;em&gt;v&lt;/em&gt;&lt;br&gt;
+某個字元是 &lt;em&gt;m&lt;/em&gt;&lt;br&gt;
+其它會有 collision 無法正確判斷位置  &lt;/p&gt;
+&lt;p&gt;直到提示給了 &lt;em&gt;plain text is a meaningful word&lt;/em&gt;&lt;br&gt;
+抱著隨意嘗試的心態去找超級長的單字&lt;br&gt;
+結果還真的有符合條件的 = =  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;aequeosalinocalcalinoceraceoaluminosocupreovitriolic&lt;/code&gt;  &lt;/p&gt;</content><category term="Other CTF"></category></entry><entry><title>BCTF 2014 PPC &amp; CRYPTO 100 混沌密碼鎖</title><link href="https://ddaa.tw/bctf_crypto_100_password_lockstitch.html" rel="alternate"></link><published>2014-03-12T02:26:00+08:00</published><updated>2014-03-12T02:26:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-03-12:/bctf_crypto_100_password_lockstitch.html</id><summary type="html">&lt;p&gt;百度 CTF blue-lotus 辦的&lt;br&gt;
+個人覺得題目還滿有趣的&lt;br&gt;
+不過到處都是置入性行銷 XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;環境是用 python 寫的一個伺服器&lt;br&gt;
+先試試看要我們幹嘛：  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Welcome to Secure Passcode System&lt;br&gt;
+First, please choose function combination:&lt;br&gt;
+f1: 1&lt;br&gt;
+f2: 2&lt;br&gt;
+f3: 3&lt;br&gt;
+f4: 4&lt;br&gt;
+Wrong function combination, you bad guy!  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;trace 原始碼得知&lt;br&gt;
+輸入的四個數字會對應到四個 function&lt;br&gt;
+並以輸入的順序將 answer 解密  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;f[&amp;#39;fun1&amp;#39;]=reverse
+f[&amp;#39;fun2&amp;#39;]=base64.b64decode
+f …&lt;/pre&gt;&lt;/div&gt;</summary><content type="html">&lt;p&gt;百度 CTF blue-lotus 辦的&lt;br&gt;
+個人覺得題目還滿有趣的&lt;br&gt;
+不過到處都是置入性行銷 XD  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;環境是用 python 寫的一個伺服器&lt;br&gt;
+先試試看要我們幹嘛：  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Welcome to Secure Passcode System&lt;br&gt;
+First, please choose function combination:&lt;br&gt;
+f1: 1&lt;br&gt;
+f2: 2&lt;br&gt;
+f3: 3&lt;br&gt;
+f4: 4&lt;br&gt;
+Wrong function combination, you bad guy!  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;trace 原始碼得知&lt;br&gt;
+輸入的四個數字會對應到四個 function&lt;br&gt;
+並以輸入的順序將 answer 解密  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;f[&amp;#39;fun1&amp;#39;]=reverse
+f[&amp;#39;fun2&amp;#39;]=base64.b64decode
+f[&amp;#39;fun3&amp;#39;]=zlib.decompress
+f[&amp;#39;fun4&amp;#39;]=dec2hex
+f[&amp;#39;fun5&amp;#39;]=binascii.unhexlify
+f[&amp;#39;fun6&amp;#39;]=gb2312
+f[&amp;#39;fun7&amp;#39;]=bin2dec
+f[&amp;#39;fun8&amp;#39;]=hex2bin
+f[&amp;#39;fun9&amp;#39;]=hex2dec
+
+answer = 78864179732635837913920409948348078659913609452869425042153399132863903834522
+3652502504296451635172283566227769786379106795384189279098815026542757070698107378508
+0761091619256306959366409460515974044867013206561595622472701295421839060280657753745
+6281222826375
+answer_hash = f[&amp;#39;fun6&amp;#39;](f[&amp;#39;fun2&amp;#39;](f[f1](f[f2](f[f3](f[f4](answer))))))
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;answer 都是數字，大膽猜測 f4 是&lt;code&gt;dec2hex&lt;/code&gt;&lt;br&gt;
+且 &lt;code&gt;fun6&lt;/code&gt; 和 &lt;code&gt;fun2&lt;/code&gt; 已經被使用，剩下的只有6種&lt;br&gt;
+而且後面三種看起來很像來亂的&lt;br&gt;
+所以就先試前三種做排列組合&lt;br&gt;
+結果就找到順序是 &lt;code&gt;3 5 1 4&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;但是這只是第一關而已&lt;br&gt;
+麻煩的在後面&lt;br&gt;
+接著要求我們輸入 passcode&lt;br&gt;
+程式會將 passcode 以相同的順序作解密&lt;br&gt;
+比對結果是否與 &lt;code&gt;answer_hash&lt;/code&gt; 相同&lt;br&gt;
+若相同則會將 flag 印出&lt;br&gt;
+但是 passcode 不能與 answer 相等&lt;br&gt;
+也就是說要找到另一組數字才行  &lt;/p&gt;
+&lt;p&gt;仔細觀察前面用到的四個 functio  n
+&lt;code&gt;reverse&lt;/code&gt; 肯定是 1-to-1&lt;br&gt;
+&lt;code&gt;base64&lt;/code&gt; 和 &lt;code&gt;dec2hex&lt;/code&gt; 也是&lt;br&gt;
+那就只有 &lt;code&gt;zlib.decompress&lt;/code&gt; 可以做文章了&lt;br&gt;
+試了一下在 zlib.decompress 的參數後面加料後對結果不影響 XD  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;x = ((f[f2](f[f3](f[f4](answer)))))
+y = binascii.hexlify(x)+&amp;quot;01&amp;quot;
+x = y.decode(&amp;#39;hex&amp;#39;)
+test = f[&amp;#39;fun6&amp;#39;](f[&amp;#39;fun2&amp;#39;](f[&amp;#39;fun3&amp;#39;](x)))
+if test == answer_hash:
+    print &amp;#39;same&amp;#39;
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;此時 &lt;code&gt;fun9&lt;/code&gt; 就有用了&lt;br&gt;
+我們可以用他們來生一組新的 passcode  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;print  f[&amp;#39;fun9&amp;#39;](f[&amp;#39;fun1&amp;#39;](y))
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;blockquote&gt;
+&lt;p&gt;Your passcode: 2046914671302815174999479572879926709311623516344310480161044657024943192185778242098416328741805906729519967582134066703522565680955045139113850683617281109011304982006585757796402695817434740126949224951202731646556997125542758488503105749434074546856689060231&lt;br&gt;
+Welcome back! The door always open for you, your majesty!&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;flag: &lt;code&gt;BCTF{py7h0n-l1b-func7i0ns-re4lly-str4nge}&lt;/code&gt;&lt;/p&gt;</content><category term="XCTF"></category><category term="Collision"></category></entry><entry><title>Boston Key Party CTF 2014 Crypto 200 MITM II: Electric Boogaloo</title><link href="https://ddaa.tw/bkpctf_crypto_200_200_mitm_ii_electric_boogaloo.html" rel="alternate"></link><published>2014-03-03T16:48:00+08:00</published><updated>2014-03-03T16:48:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-03-03:/bkpctf_crypto_200_200_mitm_ii_electric_boogaloo.html</id><summary type="html">&lt;p&gt;這題還滿簡單的&lt;br&gt;
+解法就是題目名稱 = =&lt;br&gt;
+可是不知道為什麼很少人解出來&lt;br&gt;
+可能是太晚出來被大家忽略吧 0.0  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目敘述如下：  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Chisa and Arisu are trying to tell each other two halves of a very important secret! They think they're safe, because they know how cryptography works---but can you learn their terrible, terrible secret? They're available as services at 54.186.6.201:12346 …&lt;/p&gt;&lt;/blockquote&gt;</summary><content type="html">&lt;p&gt;這題還滿簡單的&lt;br&gt;
+解法就是題目名稱 = =&lt;br&gt;
+可是不知道為什麼很少人解出來&lt;br&gt;
+可能是太晚出來被大家忽略吧 0.0  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;題目敘述如下：  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Chisa and Arisu are trying to tell each other two halves of a very important secret! They think they're safe, because they know how cryptography works---but can you learn their terrible, terrible secret? They're available as services at 54.186.6.201:12346 and 54.186.6.201:12345 respectively.&lt;br&gt;
+http://bostonkeyparty.net/challenges/mitm2-632e4ecc332baba0943a0c6471dec2c6.tar.bz2&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;附檔是環境的 source code&lt;br&gt;
+分析後發現目標會有以下行為：  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;接收 username 並檢查是不是對方名稱 如果錯誤則結束&lt;/li&gt;
+&lt;li&gt;生成 secretkey 和 publickey ，將 publickey 傳送給對方&lt;/li&gt;
+&lt;li&gt;接收對方的 publickey，用自己的 secretkey 和 對方的 publickey 生成 aeskey&lt;/li&gt;
+&lt;li&gt;將 CHECK 中的奇數(或偶數)字元以 aeskey 加密後傳送給對方&lt;/li&gt;
+&lt;li&gt;用 aeskey 解密訊息，並檢查收到的 CHECK 是否正確，如果有錯誤則結束&lt;/li&gt;
+&lt;li&gt;用 aeskey 加密 flag，並傳送給對方，以及解密對方傳來的 flag&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;MITM attack 簡單的說就是&lt;br&gt;
+原本是 &lt;code&gt;A ←→ B&lt;/code&gt; 之間傳遞訊息&lt;br&gt;
+變成 &lt;code&gt;A ←→ C ←→ B&lt;/code&gt; 由 C 攔截後並轉送訊息&lt;br&gt;
+因為接收 publickey 之後沒有確認來源 (所以需要數位簽章)&lt;br&gt;
+所以我們可以在中間攔截並偽造 publickey  &lt;/p&gt;
+&lt;p&gt;所以這題的解法為：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;向雙方送正確的 username，&lt;code&gt;アリスです&lt;/code&gt; 和 &lt;code&gt;千佐だよ&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;生成 fake secret key (fseckey) and public key (fpubkey)，並傳送 fpubkey 給雙方&lt;/li&gt;
+&lt;li&gt;用接收到的 pubkeyA &amp;amp; pubkeyB 和 fseckey 生成 aeskeyA &amp;amp; aeskeyB&lt;/li&gt;
+&lt;li&gt;用 aeskeyA 解密 A 傳來的 CHECK，並以 aeskeyB 加密傳送給 B&lt;/li&gt;
+&lt;li&gt;用 aeskeyB 解密 B 傳來的 CHECK，並以 aeskeyA 加密傳送給 A&lt;/li&gt;
+&lt;li&gt;用 aeskeyA &amp;amp; aeskeyB 解密 flag&lt;/li&gt;
+&lt;/ol&gt;</content><category term="BKPCTF"></category><category term="MITM"></category></entry><entry><title>Boston Key Party CTF 2014 Crypto 200 Xorxes the Hash</title><link href="https://ddaa.tw/bkpctf_crypto_200_xorxes_the_hash.html" rel="alternate"></link><published>2014-03-03T00:48:00+08:00</published><updated>2014-03-03T00:48:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-03-03:/bkpctf_crypto_200_xorxes_the_hash.html</id><summary type="html">&lt;p&gt;這題出的有點爛&lt;br&gt;
+限制太少導致 flag 可能有很多種&lt;br&gt;
+卻要 match md5sum 的才是正解&lt;br&gt;
+有點無言 ORZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;Crypto 200，這題是一個 python script&lt;br&gt;
+此題敘述如下：  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Xorxes is a hash collision challenge. The goal is to find a second preimage for the input string "Klaatubaradanikto". Submit it as the flag. UPDATE: It has been pointed out that there are multiple …&lt;/p&gt;&lt;/blockquote&gt;</summary><content type="html">&lt;p&gt;這題出的有點爛&lt;br&gt;
+限制太少導致 flag 可能有很多種&lt;br&gt;
+卻要 match md5sum 的才是正解&lt;br&gt;
+有點無言 ORZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;Crypto 200，這題是一個 python script&lt;br&gt;
+此題敘述如下：  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Xorxes is a hash collision challenge. The goal is to find a second preimage for the input string "Klaatubaradanikto". Submit it as the flag. UPDATE: It has been pointed out that there are multiple solutions. The flag is the one with md5sum '7179926e4253a0b405090df67f62c543'. (Use `echo -n FLAG | md5sum'.) UPDATE THE SECOND: The solution is short.  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;簡單的說我們要找到另一個字串做 Xorxes 後的結果會與 &lt;code&gt;Klaatubaradanikto&lt;/code&gt; 相同&lt;br&gt;
+但是因為結果不只一種&lt;br&gt;
+flag的結果做md5後會是 &lt;code&gt;7179926e4253a0b405090df67f62c543&lt;/code&gt;  &lt;/p&gt;
+&lt;p&gt;題目很好心的把hash的示意圖給我們了：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt; # Xorxes Hash uses message blocks of 8-bits, with a 224-bit chaining variable.
+ #
+ #   (m_0)       (m_1)         ... (m_n)  = input message blocks
+ #     |           |                 |
+ #   SHA224      SHA224        ... SHA224
+ #     |           |                 |
+ #  V-(+)-[&amp;gt;&amp;gt;&amp;gt;56]-(+)-[&amp;gt;&amp;gt;&amp;gt;56]- ... --+--- = chaining variable
+ #
+ #  chaining variable + (message length mod 24) = hash output
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;一個block就是一個字元&lt;br&gt;
+V指的是 Initail Vector&lt;br&gt;
+&lt;strong&gt;Xorxes&lt;/strong&gt; 的流程是：  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;c = IV&lt;/li&gt;
+&lt;li&gt;x = sha224(str[i]) //每次取一個字元做sha224&lt;/li&gt;
+&lt;li&gt;c = RROT(c,56)  //將目前的結果做 right rotate 56 bit&lt;/li&gt;
+&lt;li&gt;c = x ^ c&lt;/li&gt;
+&lt;li&gt;result = c + (len(str) % 24) //最後加上字串長度&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;這題的關鍵是這種 hash 的方式是 &lt;strong&gt;stream cipher&lt;/strong&gt;&lt;br&gt;
+且不會產生 avalanche effect&lt;br&gt;
+此外 sha224 會將字元 hash 成 224 bit 的結果&lt;br&gt;
+而 rotate 56bit 剛好是 1/4 的長度&lt;br&gt;
+根據這些特性...&lt;br&gt;
+我就想出來至少三種可以產生有同樣 hash 結果的方式 = =  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;找到 -24 內的 hash 加上固定的 4n 個相同字元，以長度調整 hash value&lt;br&gt;
+4 個相同字元 hash 出來的結果會是 0 (忽略IV)&lt;br&gt;
+xor 的特性是 &lt;code&gt;a^a=0&lt;/code&gt;
+雖然這題有做 shift 但是四個相同字元將無視這個限制&lt;br&gt;
+理論上是可行但是要找到符合條件似乎太過嚴苛&lt;br&gt;
+加上 hint "The solution is short" 讓我否定了這個猜想  &lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;KlaXtubXradXnikto&lt;/code&gt;&lt;br&gt;
+xor 還有一個特性是滿足交換率&lt;br&gt;
+如果中間有相同的字元，且 index%4 相同&lt;br&gt;
+這兩個字元在 hash 的過程中可以相互抵銷&lt;br&gt;
+&lt;code&gt;Klaatubaradanikto&lt;/code&gt; 這個字串有三個位置滿足這條件&lt;br&gt;
+我嘗試填入 &lt;em&gt;[a-zA-Z0-9]&lt;/em&gt;&lt;br&gt;
+C3取 2*62 共 186 種組合 拿去做 md5 check&lt;br&gt;
+結果都不是正確的結果 ORZ  &lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;將 &lt;code&gt;Klaatubaradanikto&lt;/code&gt; 內的字元做交換&lt;br&gt;
+用xor交換率的特性&lt;br&gt;
+index%4 相同的字元可以交換卻不影響 hash 的結果&lt;br&gt;
+但是這可能性就有點多....&lt;br&gt;
+一共約有 &lt;code&gt;5!\*4!\*4!\*4!=1658880&lt;/code&gt; 種 (字元相同我懶得扣掉了 XD)&lt;br&gt;
+我跑了將近一個小時最後才得到結果 = =&lt;br&gt;
+不知道是不是我還有什麼沒考慮到的?  &lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;flag: &lt;code&gt;radaniktKlaatubao&lt;/code&gt;&lt;/p&gt;</content><category term="BKPCTF"></category><category term="Collision"></category></entry><entry><title>GiTs 2014 Crypto 75 Dogecrypt</title><link href="https://ddaa.tw/gits_crypto_75_dogecrypt.html" rel="alternate"></link><published>2014-01-20T23:46:00+08:00</published><updated>2014-01-20T23:46:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2014-01-20:/gits_crypto_75_dogecrypt.html</id><summary type="html">&lt;p&gt;老實說我覺得這題出滿爛的&lt;br&gt;
+害我花最長時間解結果沒解出來&lt;br&gt;
+因為最關鍵的資訊是在 IRC 上提示的 ORZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題給的檔案是一個加密過後的文件&lt;br&gt;
+前面的標頭是 &lt;strong&gt;VimCrypt~01!&lt;/strong&gt;&lt;br&gt;
+google 以後我才知道原來 &lt;em&gt;vim&lt;/em&gt; 可以用 &lt;code&gt;:X&lt;/code&gt; 或 &lt;code&gt;-x&lt;/code&gt; 加密文件 =.=&lt;br&gt;
+加密方式又有分較舊版的 &lt;strong&gt;PKZIP (VimCrypt~01)&lt;/strong&gt; 和新版的 &lt;strong&gt;blowfish (VimCrypt~02)&lt;/strong&gt;&lt;br&gt;
+這題是舊版的 &lt;strong&gt;PKZIP&lt;/strong&gt;  &lt;/p&gt;
+&lt;p&gt;一開始 google 尋找解法&lt;br&gt;
+發現有人寫了 &lt;strong&gt;vimzipper&lt;/strong&gt;&lt;br&gt;
+用途是將加密過的 vim 文件重新包裝成 zip 的格式&lt;br&gt;
+包完可以用 &lt;strong&gt;pkcrack&lt;/strong&gt; 或其他破解 zip 的軟體去分析&lt;br&gt;
+但是測試後重新封裝的 zip 沒辦法用 brute-force 去得到 key&lt;br&gt;
+&lt;strong&gt;pkcrack …&lt;/strong&gt;&lt;/p&gt;</summary><content type="html">&lt;p&gt;老實說我覺得這題出滿爛的&lt;br&gt;
+害我花最長時間解結果沒解出來&lt;br&gt;
+因為最關鍵的資訊是在 IRC 上提示的 ORZ  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;這題給的檔案是一個加密過後的文件&lt;br&gt;
+前面的標頭是 &lt;strong&gt;VimCrypt~01!&lt;/strong&gt;&lt;br&gt;
+google 以後我才知道原來 &lt;em&gt;vim&lt;/em&gt; 可以用 &lt;code&gt;:X&lt;/code&gt; 或 &lt;code&gt;-x&lt;/code&gt; 加密文件 =.=&lt;br&gt;
+加密方式又有分較舊版的 &lt;strong&gt;PKZIP (VimCrypt~01)&lt;/strong&gt; 和新版的 &lt;strong&gt;blowfish (VimCrypt~02)&lt;/strong&gt;&lt;br&gt;
+這題是舊版的 &lt;strong&gt;PKZIP&lt;/strong&gt;  &lt;/p&gt;
+&lt;p&gt;一開始 google 尋找解法&lt;br&gt;
+發現有人寫了 &lt;strong&gt;vimzipper&lt;/strong&gt;&lt;br&gt;
+用途是將加密過的 vim 文件重新包裝成 zip 的格式&lt;br&gt;
+包完可以用 &lt;strong&gt;pkcrack&lt;/strong&gt; 或其他破解 zip 的軟體去分析&lt;br&gt;
+但是測試後重新封裝的 zip 沒辦法用 brute-force 去得到 key&lt;br&gt;
+&lt;strong&gt;pkcrack&lt;/strong&gt; 則需要先知道明文才有辦法分析&lt;br&gt;
+在網站上逛來逛去也沒看到 size = 402 byte 的文件&lt;br&gt;
+我就卡死在這邊了 ORZ&lt;br&gt;
+後來看別人的 write up&lt;br&gt;
+才得知原來這題有 hint:  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;"Solveable in &amp;lt;5m. Much attack very wamerican-small."&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;&lt;strong&gt;wamerican-small&lt;/strong&gt; 是一個字典檔&lt;br&gt;
+可以用 &lt;code&gt;apt-get install wamerican-small&lt;/code&gt; 下載安裝&lt;br&gt;
+裝完檔案會在 &lt;code&gt;/usr/share/dict/wamerican-small&lt;/code&gt;&lt;br&gt;
+於是乎 我們就用字典破解來解這題...&lt;br&gt;
+我用 python 開 vim 再踹密碼&lt;br&gt;
+大約是一秒一個的速度 = =&lt;br&gt;
+五萬多行跑完天都黑了&lt;br&gt;
+所以用 &lt;code&gt;split&lt;/code&gt; 把檔案切成 10 個&lt;br&gt;
+大概跑一小時就跑出結果了&lt;br&gt;
+解出來的密碼是: &lt;em&gt;parliament&lt;/em&gt;&lt;br&gt;
+可以用 vim 並輸入密碼開啟原本的檔案&lt;br&gt;
+就得到結果了~  &lt;/p&gt;
+&lt;p&gt;write up 提供的解法打開 vim source code&lt;br&gt;
+用裡面的 function 來 decrypt 文件&lt;br&gt;
+過程也是用字典檔下去試&lt;br&gt;
+不過用這種做法五分鐘就跑完了 &amp;lt;(_ _)&amp;gt;  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;ShibeSuchDictionaryAttacksWow&lt;/code&gt;  &lt;/p&gt;</content><category term="Other CTF"></category></entry><entry><title>30C3CTF 2013 Number 100 Guess</title><link href="https://ddaa.tw/30c3ctf_2013_number_100_guess.html" rel="alternate"></link><published>2013-12-30T22:56:00+08:00</published><updated>2013-12-30T22:56:00+08:00</updated><author><name>ddaa</name></author><id>tag:ddaa.tw,2013-12-30:/30c3ctf_2013_number_100_guess.html</id><summary type="html">&lt;p&gt;第一次玩的 wargame --- 程式安全的作業1&lt;br&gt;
+也是猜數字...不過&lt;br&gt;
+這題好難 Orz...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;先 nc 連過去看看情況  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Welcome to this little guessing game!&lt;br&gt;
+You have 0/10 right guesses, whats your next guess? 123&lt;br&gt;
+Nope, that was wrong, correct would have been 8309891200023509866...&lt;br&gt;
+You have 0/10 right guesses, whats your next guess? 456&lt;br&gt;
+Nope, that was …&lt;/p&gt;&lt;/blockquote&gt;</summary><content type="html">&lt;p&gt;第一次玩的 wargame --- 程式安全的作業1&lt;br&gt;
+也是猜數字...不過&lt;br&gt;
+這題好難 Orz...  &lt;/p&gt;
+&lt;hr&gt;
+&lt;p&gt;先 nc 連過去看看情況  &lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;Welcome to this little guessing game!&lt;br&gt;
+You have 0/10 right guesses, whats your next guess? 123&lt;br&gt;
+Nope, that was wrong, correct would have been 8309891200023509866...&lt;br&gt;
+You have 0/10 right guesses, whats your next guess? 456&lt;br&gt;
+Nope, that was wrong, correct would have been 14393411043272556995...&lt;br&gt;
+You have 0/10 right guesses, whats your next guess?  &lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;大概就是要我們猜對 10 次吧&lt;br&gt;
+看看程式碼是如何寫的：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;if guess != answer:
+  guess_right = 0
+  c.sendall(&amp;quot;Nope, that was wrong, correct would have been %s...\n&amp;quot; % answer)
+  continue
+guess_right += 1
+if guess_right &amp;lt; guess_limit:
+  c.sendall(&amp;quot;Yes! That was correct, awesome...\n&amp;quot;)
+  continue
+c.sendall(&amp;quot;You did it! The flag is: %s&amp;quot; % flag)
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;結果不只要猜對 10 次 還要連續猜對 10 次 XD&lt;br&gt;
+以前作業是用 bof 去 overwrite 判斷的變數&lt;br&gt;
+不過 python 是沒有什麼 bof 之類的可以用吧...  &lt;/p&gt;
+&lt;p&gt;只好研究一下答案是如何產生的：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;r = random.Random()
+r.seed(os.urandom(16))
+...
+while 1:
+  answer = str(r.getrandbits(64)
+  ....
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;看起來沒有破綻，每次連線 seed 的值都由 &lt;code&gt;os.urandom(16)&lt;/code&gt; 決定&lt;br&gt;
+不過在 &lt;strong&gt;連線後&lt;/strong&gt; seed 的值就固定了&lt;br&gt;
+當下我是想了幾種做法：  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;破解出 &lt;code&gt;os.urandom()&lt;/code&gt; 的算法，知道下次seed之後就可以得知每次產生的answer&lt;/li&gt;
+&lt;li&gt;暴力破解試出seed的值，然後就可以推出後面 &lt;code&gt;getrandbits(64)&lt;/code&gt; 的結果&lt;/li&gt;
+&lt;li&gt;破解出 &lt;code&gt;getrandbits(64)&lt;/code&gt; 的算法，得到後面 &lt;code&gt;getrandbits(64)&lt;/code&gt; 的結果&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;google一下 &lt;code&gt;os.random()&lt;/code&gt; 的作法，得知是看系統的 &lt;em&gt;/dev/urandom&lt;/em&gt; 是怎麼實作，感覺在遠端是無法破解吧 XD&lt;br&gt;
+然後當時不知道哪根筋不對，竟然會覺得 2 是可行的，程式寫完開始 run 就去睡覺&lt;br&gt;
+後來想想 seed 的可能性是... 16byte = 2^8^16 = 2^128 &lt;br&gt;
+幹...跑到 4012 年都跑不出結果吧 XD&lt;br&gt;
+還一度想用平行運算...後來想想 ctf 應該不會出這種需要暴力破解的題目  &lt;/p&gt;
+&lt;p&gt;最後考慮方案(3)....開始 google &lt;code&gt;Random.getrandbits()&lt;/code&gt; 的作法&lt;br&gt;
+最後找到一篇&lt;br&gt;
+[http://jazzy.id.au/default/2010/09/22/cracking_random_number_generators_part_3.html]  &lt;/p&gt;
+&lt;p&gt;&lt;code&gt;Random.getrandbits()&lt;/code&gt; 是 PRNG (偽隨機數生成器)&lt;br&gt;
+所用到的演算法是 &lt;strong&gt;Mersenne Twister&lt;/strong&gt;&lt;br&gt;
+MT 會產生 624 個 state
+每個 state 代表一個 32 bit 的數字&lt;br&gt;
+每一個 state 可以產生出一個 32 bit 的亂數&lt;br&gt;
+計算的方式如下：  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;int tmp = state[currentIndex];
+tmp ^= (tmp &amp;gt;&amp;gt;&amp;gt; 11);
+tmp ^= (tmp &amp;lt;&amp;lt; 7) &amp;amp; 0x9d2c5680;
+tmp ^= (tmp &amp;lt;&amp;lt; 15) &amp;amp; 0xefc60000;
+tmp ^= (tmp &amp;gt;&amp;gt;&amp;gt; 18);
+ran_num = tmp
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;624個 state 用完，再計算新的 state value&lt;br&gt;
+所以我們接著需要做的是....  &lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;隨便猜一個數字，並記錄傳回的 answer&lt;/li&gt;
+&lt;li&gt;將 answer 拆成前半 a1 和後半 a2，分別是兩次 state 產生出來的亂數&lt;/li&gt;
+&lt;li&gt;用 a1, a2 反推出 state 代表的結果 s1, s2&lt;/li&gt;
+&lt;li&gt;重複 312 次，共得到 624 個state&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;得到 624 個 state 後，可以產生每個 state 下一次的value  &lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;int[] state;
+for (i = 0; i &amp;lt; 624; i++) {
+  int y = (state[i] &amp;amp; 0x80000000) + (state[(i + 1) % 624] &amp;amp; 0x7fffffff);
+  int next = y &amp;gt;&amp;gt;&amp;gt; 1;
+  next ^= state[(i + 397) % 624];
+  if ((y &amp;amp; 1L) == 1L)
+    next ^= 0x9908b0df;
+  state[i] = next;
+}
+&lt;/pre&gt;&lt;/div&gt;
+
+
+&lt;p&gt;用新的 state 套上前面計算的方式，就是下次的 answer&lt;br&gt;
+&lt;img alt="flag.png" src="https://ddaa.tw/images/30c3CTF_2013_guess_flag.png"&gt;  &lt;/p&gt;
+&lt;p&gt;flag: &lt;code&gt;30C3_b9b1579866cccd28b1918302382c9107&lt;/code&gt;&lt;/p&gt;</content><category term="3XC3CTF"></category><category term="PRNG"></category></entry></feed>
